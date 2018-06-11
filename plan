@@ -1,0 +1,62 @@
+
+
+
+on startup
+    start mdns listener
+    wait till airfoil instance found
+        if no airfoil instance found and running on same machine
+            optionally launch airfoil
+
+which airfoil to use
+    the url scheme for most verbs will look something like this
+        {remoteFoil server}/{airfoil instance display name}/{verb}/{option}
+        http://ubuntuvm/airfoil1_pc/speakers
+        http://ubuntuvm/airfoil1_pc/speaker/connect/living_room_speaker
+    if there are multiple, by default we use the first discovered airfoil instance
+        if our instance disappears, automatically move to next instance
+            unless name is specified then we just wait that name to reappear
+        if all instances disappear , wait until new instance appears in the future
+            cli will time out after 10 seconds (or --timeout {number} (in secs))
+    allow for specifying name when creating instance or from cli
+
+with airfoil selected, the following endpoints will be created
+    /speakers
+        retrieve list of speakers with name, icon, volume, connect state, id
+        call with speaker name should use name of speaker lower case with underscores for spaces in uri
+        Living_Room Left Speaker -> /speaker/connect/living_room_left_speaker
+    /speaker/connect/{speaker_name}
+    /speaker/disconnect/{speaker_name}
+    /speaker/connnect    <-- connect all speakers
+    /speaker/disconnect  <-- disconnect all speakers
+    /speaker/volume/{speaker_name}/  <- retrieve current volume for speaker
+        set volume for speaker below >>
+    /speaker/volume/{speaker_name}/{level as number between 0 and 1 with at least 6 digit precision)
+    /speaker/volume/{speaker_name}/mute
+    /speaker/volume/{speaker_name}/unmute
+    /sources
+        get list and state of all sources, including which is selected, and uri names for each
+    /sources/recent
+    /sources/running
+    /sources/devices
+        filtered list of results for just calling /sources/
+    /sources/connect/system_audio
+    /sources/connect/{uri name of source}
+    /sources/connect/spotify
+    /sources/connect/microphone   <- short for 'Microphone (Generic USB Audio Device   )'
+        can be substring but first match will be used
+        use multiple substrings with __
+        /sources/connect/usb__microphone would get 'Microphone (Generic USB Audio Device   )'
+        to distinguish multiple devices use enough of the name to be distinctive
+    /now_playing/
+        retrieve metadata for currently playing music according to airfoil
+
+
+Airfoil class will provide an interface into the selected instance of Airfoil and provide the verbs
+necessary to implement the rest api and cli
+
+Web class will implement uri structure to implement each verb for each instance of airfoil simultaneously
+https://tutorialedge.net/python/create-rest-api-python-aiohttp/
+https://aiohttp.readthedocs.io/en/stable/
+
+
+
