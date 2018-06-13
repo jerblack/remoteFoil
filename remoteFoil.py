@@ -1,7 +1,5 @@
 from zeroconf import ServiceBrowser, Zeroconf
-import socket,nclib
-from collections import namedtuple
-
+import asyncio
 
 # class Airfoil(object):
 PROTOCOL_VERSION = b"com.rogueamoeba.protocol.slipstreamremote\nmajorversion=1,minorversion=5\n";
@@ -10,32 +8,11 @@ remote_ok = b"OK\n$"
 subscribe = b"212;{\"request\":\"subscribe\",\"requestID\":\"3\",\"data\":{\"notifications\":[\"remoteControlChangedRequest\",\"speakerConnectedChanged\",\"speakerListChanged\",\"speakerNameChanged\",\"speakerPasswordChanged\",\"speakerVolumeChanged\"]}}"
 
 ip = "192.168.0.50"
-port=63336
-
-import nclib
-nc = nclib.Netcat((ip, port), verbose=True)
-nc.send(PROTOCOL_VERSION)
-if remote_protocol_ok in nc.recv():
-    nc.send(remote_ok)
-    if remote_ok in nc.recv():
-        nc.send(subscribe)
-        print(nc.recv())
+port = 63336
 
 
 
 
-
-
-
-
-
-    #
-    #
-    # def __init__(self, name, display_name, ip, port):
-    #     self.name, self.display_name, self.ip, self.port = name, display_name, ip, port
-    #     self.handshake = 0
-    #     self.socket = socket.socket()
-    #     self.socket.connect((name, port))
 
 
 class Listener(object):
@@ -57,14 +34,14 @@ class Listener(object):
         port = info.port
         display_name = name.strip(self.name).lower()
         print(f"Service '{display_name}' added with ip {ip} and port {port}")
-        self.airfoils[name] = Airfoil(name, display_name, ip, port)
+        # self.airfoils[name] = Airfoil(name, display_name, ip, port)
 
     def close(self):
         self.zeroconf.close()
 
 
-# listener = Listener()
-# try:
-#     input("Press enter to exit...\n\n")
-# finally:
-#     listener.close()
+listener = Listener()
+try:
+    input("Press enter to exit...\n\n")
+finally:
+    listener.close()
