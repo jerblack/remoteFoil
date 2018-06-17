@@ -65,7 +65,7 @@ majorversion=1,minorversion=5
 > sent
 354;{"request":"getSourceMetadata","requestID":"7","data":{"scaleFactor":1,"requestedData":{"album":true,"remoteControlAvailable":true,"machineIconAndScreenshot":64,"bundleid":true,"albumArt":64,"sourceName":true,"title":true,"icon":16,"trackMetadataAvailable":true,"artist":true,"machineModel":true,"machineName":true}}}
 > recv
-415597;{"replyID":"7","data":{"metadata":{"trackMetadataAvailable":false,"sourceName":"System Audio","albumArt":"","icon":"{b64 image data}","remoteControlAvailable":false,"machineModel":"com.microsoft.win32","machineName":"server","machineIconAndScreenshot":"{b64 image data}"}}}
+415597;{"replyID":"7","data":{"metadata":{"trackMetadataAvailable":false,"sourceName":"System Audio","albumArt":"","icon":"B64_IMAGE_DATA","remoteControlAvailable":false,"machineModel":"com.microsoft.win32","machineName":"server","machineIconAndScreenshot":"B64_IMAGE_DATA"}}}
 or
 > recv
 {number};{"replyID":"7","data":{"metadata":{"album":"YoursTruly,AngryMob","remoteControlAvailable":true,"bundleid":"com.spotify.client","machineIconAndScreenshot":"...","title":"Ruby","sourceName":"Spotify","albumArt":"...","icon":"...","trackMetadataAvailable":1,"artist":"KaiserChiefs","machineModel":"MacBookAir6,2","machineName":"Seim'sLappi"}}}
@@ -78,17 +78,17 @@ or
 >receive
 17728;{"replyID":"7","data":
 {"audioDevices":[
-{"friendlyName":"Microphone (Generic USB Audio Device   )","identifier":"{0.0.1.00000000}.{3e5b6486-7f0b-4224-871d-bad6e30a2b54}","icon":"{b64 image data}"}],
+{"friendlyName":"Microphone (Generic USB Audio Device   )","identifier":"{0.0.1.00000000}.{3e5b6486-7f0b-4224-871d-bad6e30a2b54}","icon":"B64_IMAGE_DATA"}],
 "recentApplications":[
-{"friendlyName":"Spotify","identifier":"C:\\Users\\jeremy\\AppData\\Roaming\\Spotify\\spotify.exe","icon":"{b64 image data}"},
-{"friendlyName":"Windows Media Player","identifier":"C:\\Program Files\\Windows Media Player\\wmplayer.exe","icon":"{b64 image data}"},
-{"friendlyName":"iTunes","identifier":"C:\\Program Files\\iTunes\\iTunes.exe","icon":"{b64 image data}"},
-{"friendlyName":"Internet Explorer","identifier":"C:\\Program Files\\Internet Explorer\\iexplore.exe","icon":"{b64 image data}"}],
-"runningApplications":[{"friendlyName":"GoodSync Synchronizer","identifier":"C:\\GoodSync\\x64\\GoodSync2Go-v10.exe","icon":"{b64 image data}"},
-{"friendlyName":"Spotify","identifier":"C:\\Users\\jeremy\\AppData\\Roaming\\Spotify\\spotify.exe","icon":"{b64 image data}"},
-{"friendlyName":"python","identifier":"C:\\Python27\\python.exe","icon":"{b64 image data}"}],
+{"friendlyName":"Spotify","identifier":"C:\\Users\\jeremy\\AppData\\Roaming\\Spotify\\spotify.exe","icon":"B64_IMAGE_DATA"},
+{"friendlyName":"Windows Media Player","identifier":"C:\\Program Files\\Windows Media Player\\wmplayer.exe","icon":"B64_IMAGE_DATA"},
+{"friendlyName":"iTunes","identifier":"C:\\Program Files\\iTunes\\iTunes.exe","icon":"B64_IMAGE_DATA"},
+{"friendlyName":"Internet Explorer","identifier":"C:\\Program Files\\Internet Explorer\\iexplore.exe","icon":"B64_IMAGE_DATA"}],
+"runningApplications":[{"friendlyName":"GoodSync Synchronizer","identifier":"C:\\GoodSync\\x64\\GoodSync2Go-v10.exe","icon":"B64_IMAGE_DATA"},
+{"friendlyName":"Spotify","identifier":"C:\\Users\\jeremy\\AppData\\Roaming\\Spotify\\spotify.exe","icon":"B64_IMAGE_DATA"},
+{"friendlyName":"python","identifier":"C:\\Python27\\python.exe","icon":"B64_IMAGE_DATA"}],
 "systemAudio":[
-{"friendlyName":"System Audio","identifier":"windows.systemaudio","icon":"{b64 image data}"}]}}
+{"friendlyName":"System Audio","identifier":"windows.systemaudio","icon":"B64_IMAGE_DATA"}]}}
 
 
 # starting airfoil satellite with itunes loaded as source with metadata available
@@ -101,8 +101,15 @@ majorversion=1,minorversion=5
 OK
 > recv
 OK
+
+
+
 > send
 365;{"data":{"notifications":["speakerListChanged","speakerConnectedChanged","speakerPasswordChanged","speakerVolumeChanged","speakerNameChanged","remoteControlChangedRequest"]},"_replyTypes":["subscribe","getSourceMetadata","connectToSpeaker","disconnectSpeaker","setSpeakerVolume","getSourceList","remoteCommand","selectSource"],"request":"subscribe","requestID":"1"}
+
+
+
+
 > recv
 2191;{"replyID":"1","data":{"notifications":["speakerListChanged","speakerConnectedChanged","speakerPasswordChanged","speakerVolumeChanged","speakerNameChanged","remoteControlChangedRequest"],"canConnect":true,"canRemoteControl":true,"speakers":[{"type":"local","name":"Computer","longIdentifier":"com.rogueamoeba.airfoil.LocalSpeaker","volume":1.0,"connected":false,"password":false},{"type":"chromecast","name":"Office speaker","longIdentifier":"Chromecast-Audio-20dcfed9e9bd8cf76a1ad34691dc32ad@Office speaker","volume":0.0,"connected":false,"password":false},{"type":"chromecast","name":"Bedroom Shield","longIdentifier":"SHIELD-Android-TV-fd75fa2dbc4e513427f5926062f037b3@Bedroom Shield","volume":0.0,"connected":false,"password":false},{"type":"airplay","name":"zDESKTOP","longIdentifier":"92151D7F8523@zDESKTOP","volume":1.0,"connected":false,"password":false},{"type":"chromecast","name":"Living Room Shield","longIdentifier":"SHIELD-Android-TV-322087591693794e93a5e2fbbb367587@Living Room Shield","volume":0.0,"connected":false,"password":false},{"type":"airplay","name":"Shield Airplay","longIdentifier":"00054B833420@Shield Airplay","volume":1.0,"connected":false,"password":false},{"type":"chromecast","name":"Bedroom speaker","longIdentifier":"Chromecast-Audio-99130c3591fa2bbff26b770eda819eff@Bedroom speaker","volume":0.0,"connected":false,"password":false},{"type":"airplay","name":"Apple TV","longIdentifier":"0866989DAEC6@Apple TV","volume":1.0,"connected":false,"password":false},{"type":"chromecast","name":"Living Room speaker","longIdentifier":"Chromecast-Audio-cda4e14e1d4c14781a3e099aa58ac8e6@Living Room speaker","volume":0.567428052,"connected":false,"password":false},{"type":"chromecast","name":"Living room Home","longIdentifier":"Google-Home-1c9c6f1ab002fb681836cbc2cb3082d7@Living room Home","volume":0.638,"connected":false,"password":false},{"type":"chromecast","name":"Living Room Chromecast","longIdentifier":"Chromecast-Ultra-93fe0c0a723e8381d61ca4de663fdaf6@Living Room Chromecast","volume":0.0,"connected":false,"password":false},{"type":"airplay","name":"Pixel XL","longIdentifier":"020000000000@Pixel XL","volume":1.0,"connected":false,"password":false}]}}
 > send
@@ -118,6 +125,7 @@ OK
 35;{"request":"sourceMetadataChanged"}
 > send
 447;{"data":{"scaleFactor":2,"requestedData":{"machineIconAndScreenshot":300,"albumArt":300,"artist":"true","album":"true","bundleid":"true","icon":32,"trackMetadataAvailable":"true","sourceName":"true","title":"true","remoteControlAvailable":"true"}},"_replyTypes":["subscribe","getSourceMetadata","connectToSpeaker","disconnectSpeaker","setSpeakerVolume","getSourceList","remoteCommand","selectSource"],"request":"getSourceMetadata","requestID":"5"}
+>
 946070;{"replyID":"5","data":{"metadata":{"trackMetadataAvailable":true,"sourceName":"iTunes","albumArt":"B64 IMG DATA"}}}
 
 
@@ -147,3 +155,49 @@ same as above except it starts with this
 39;{"replyID":"4","data":{"success":true}}
 35;{"request":"sourceMetadataChanged"}
 447;{"data":{"scaleFactor":2,"requestedData":{"machineIconAndScreenshot":300,"albumArt":300,"artist":"true","album":"true","bundleid":"true","icon":32,"trackMetadataAvailable":"true","sourceName":"true","title":"true","remoteControlAvailable":"true"}},"_replyTypes":["subscribe","getSourceMetadata","connectToSpeaker","disconnectSpeaker","setSpeakerVolume","getSourceList","remoteCommand","selectSource"],"request":"getSourceMetadata","requestID":"5"}
+
+
+
+
+
+
+
+
+com.rogueamoeba.protocol.slipstreamremote
+majorversion=1,minorversion=5
+OK
+
+212;{"request":"subscribe","requestID":"3","data":{"notifications":["remoteControlChangedRequest","speakerConnectedChanged","speakerListChanged","speakerNameChanged","speakerPasswordChanged","speakerVolumeChanged"]}}
+
+
+
+
+
+
+sample speaker list
+[{'type': 'local', 'name': 'Computer', 'longIdentifier': 'com.rogueamoeba.airfoil.LocalSpeaker', 'volume': 1.0, 'connected': False, 'password': False}, {'type': 'airplay', 'name': 'Apple TV', 'longIdentifier': '0866989DAEC6@Apple TV', 'volume': 0.600858569, 'connected': False, 'password': False}, {'type': 'chromecast', 'name': 'Living Room Shield', 'longIdentifier': 'SHIELD-Android-TV-322087591693794e93a5e2fbbb367587@Living Room Shield', 'volume': 1.0, 'connected': False, 'password': False}, {'type': 'chromecast', 'name': 'Bedroom Shield', 'longIdentifier': 'SHIELD-Android-TV-fd75fa2dbc4e513427f5926062f037b3@Bedroom Shield', 'volume': 0.386266142, 'connected': False, 'password': False}, {'type': 'chromecast', 'name': 'Office speaker', 'longIdentifier': 'Chromecast-Audio-20dcfed9e9bd8cf76a1ad34691dc32ad@Office speaker', 'volume': 1.0, 'connected': True, 'password': False}, {'type': 'airplay', 'name': 'zDESKTOP', 'longIdentifier': '92151D7F8523@zDESKTOP', 'volume': 1.0, 'connected': False, 'password': False}, {'type': 'chromecast', 'name': 'Living Room Chromecast', 'longIdentifier': 'Chromecast-Ultra-93fe0c0a723e8381d61ca4de663fdaf6@Living Room Chromecast', 'volume': 0.8082403, 'connected': False, 'password': False}, {'type': 'airplay', 'name': 'Shield Airplay', 'longIdentifier': '00054B833420@Shield Airplay', 'volume': 1.0, 'connected': False, 'password': False}, {'type': 'chromecast', 'name': 'Bedroom speaker', 'longIdentifier': 'Chromecast-Audio-99130c3591fa2bbff26b770eda819eff@Bedroom speaker', 'volume': 0.768239856, 'connected': False, 'password': False}, {'type': 'chromecast', 'name': 'Living room Home', 'longIdentifier': 'Google-Home-1c9c6f1ab002fb681836cbc2cb3082d7@Living room Home', 'volume': 1.0, 'connected': False, 'password': False}, {'type': 'chromecast', 'name': 'Living Room speaker', 'longIdentifier': 'Chromecast-Audio-cda4e14e1d4c14781a3e099aa58ac8e6@Living Room speaker', 'volume': 1.0, 'connected': False, 'password': False}, {'type': 'group', 'name': 'Everywhere', 'longIdentifier': 'ff15404a-6e73-43db-ad90-3f757ea3154e', 'volume': 0.0, 'connected': False, 'password': False}]
+
+
+name:  Microphone (Generic USB Audio Device   )
+  id:  {0.0.1.00000000}.{3e5b6486-7f0b-4224-871d-bad6e30a2b54}
+name:  GoodSync Synchronizer
+  id:  C:\GoodSync\x64\GoodSync2Go-v10.exe
+name:  Spotify
+  id:  C:\Users\jeremy\AppData\Roaming\Spotify\spotify.exe
+name:  iTunes
+  id:  C:\Program Files\WindowsApps\AppleInc.iTunes_12075.9.34012.0_x64__nzyj5cx40ttqa\AMDS64\AppleMobileDeviceProcess.exe
+name:  python
+  id:  C:\Python27\python.exe
+name:  Windows Media Player
+  id:  C:\Program Files\Windows Media Player\wmplayer.exe
+name:  C:\Program Files\iTunes\iTunes.exe
+  id:  C:\Program Files\iTunes\iTunes.exe
+name:  Internet Explorer
+  id:  C:\Program Files\Internet Explorer\iexplore.exe
+name:  System Audio
+  id:  windows.systemaudio
+
+
+
+get_current_source() returns
+current_source(source_has_track_metadata=False, source_name='System Audio', source_controllable=False, source_icon=None, track_album=None, track_album_art=None, track_artist=None, track_title=None, system_icon=None)

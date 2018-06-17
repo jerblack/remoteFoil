@@ -25,6 +25,13 @@ convert hexip to real ip
 '.'.join(str(i) for i in ip)
 address=b'\xc0\xa8\x00\x93' becomes '192.168.0.147'
 
+> this also works
+import socket
+pkip = b'\xc0\xa8\x00\x93'
+socket.inet_ntoa(pkip) -> '192.168.0.147'
+ip = '192.168.0.147'
+socket.inet_aton(ip) -> b'\xc0\xa8\x00\x93'
+
 
 
 << b'197;{"request":"speakerStateChanged","data":{"identifiers":["Chromecast-Audio-20dcfed9e9bd8cf76a1ad34691dc32ad"],"longIdentifiers":["Chromecast-Audio-20dcfed9e9bd8cf76a1ad34691dc32ad@Office speaker"]}}'

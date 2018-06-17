@@ -8,7 +8,7 @@ remote_ok = b"OK\n$"
 subscribe = b"212;{\"request\":\"subscribe\",\"requestID\":\"3\",\"data\":{\"notifications\":[\"remoteControlChangedRequest\",\"speakerConnectedChanged\",\"speakerListChanged\",\"speakerNameChanged\",\"speakerPasswordChanged\",\"speakerVolumeChanged\"]}}"
 
 ip = "192.168.0.50"
-port = 63336
+port = 62305
 
 
 
