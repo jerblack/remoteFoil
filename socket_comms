@@ -201,3 +201,30 @@ name:  System Audio
 
 get_current_source() returns
 current_source(source_has_track_metadata=False, source_name='System Audio', source_controllable=False, source_icon=None, track_album=None, track_album_art=None, track_artist=None, track_title=None, system_icon=None)
+
+
+speaker names and ids
+Computer
+com.rogueamoeba.airfoil.LocalSpeaker
+Living Room Shield
+SHIELD-Android-TV-322087591693794e93a5e2fbbb367587@Living Room Shield
+Bedroom Shield
+SHIELD-Android-TV-fd75fa2dbc4e513427f5926062f037b3@Bedroom Shield
+Office speaker
+Chromecast-Audio-20dcfed9e9bd8cf76a1ad34691dc32ad@Office speaker
+Apple TV
+0866989DAEC6@Apple TV
+Living Room Chromecast
+Chromecast-Ultra-93fe0c0a723e8381d61ca4de663fdaf6@Living Room Chromecast
+Bedroom speaker
+Chromecast-Audio-99130c3591fa2bbff26b770eda819eff@Bedroom speaker
+Living room Home
+Google-Home-1c9c6f1ab002fb681836cbc2cb3082d7@Living room Home
+zDESKTOP
+92151D7F8523@zDESKTOP
+Shield Airplay
+00054B833420@Shield Airplay
+Living Room speaker
+Chromecast-Audio-cda4e14e1d4c14781a3e099aa58ac8e6@Living Room speaker
+Everywhere
+ff15404a-6e73-43db-ad90-3f757ea3154e
