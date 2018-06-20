@@ -59,6 +59,12 @@ class Airfoil(object):
         keywords = name.split(' ')
         return keywords
 
+    def _get_result(self, base_cmd):
+        request_id, cmd = self._create_cmd(base_cmd)
+        for response in self._get_responses(cmd):
+            if 'replyID' in response and response['replyID'] == request_id:
+                return response['data']['success']
+
     def _find_speaker(self, id=None, name=None, keywords=[]):
         caller = sys._getframe(1).f_code.co_name
         speakers = self.get_speakers()
@@ -90,12 +96,6 @@ class Airfoil(object):
             if not selected_speaker:
                 raise ValueError(f'no speakers were found with the specified keywords:\n\t\t\t{keywords}')
         return selected_speaker
-
-    def _get_result(self, base_cmd):
-        request_id, cmd = self._create_cmd(base_cmd)
-        for response in self._get_responses(cmd):
-            if 'replyID' in response and response['replyID'] == request_id:
-                return response['data']['success']
 
     def watch(self):
         base_cmd = {"request": "subscribe", "requestID": "-1", "data": {
@@ -522,11 +522,13 @@ class Airfoil(object):
     def mute_all(self):
         self.get_speakers()
         self.mute_some(ids=[speaker.id for speaker in self.speakers if speaker.volume])
+        return True
 
     def unmute_all(self, default_volume=1.0):
         self.get_speakers()
         self.unmute_some(ids=[speaker.id for speaker in self.speakers if not speaker.volume],
                          default_volume=default_volume)
+        return True
         
 
 

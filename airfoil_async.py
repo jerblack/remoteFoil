@@ -1,15 +1,36 @@
-import asyncio, json, sys, copy
-from airfoil import Airfoil
+import asyncio, json, sys, copy, random
 from collections import namedtuple
 
-class AirfoilAsync(Airfoil):
+
+class AirfoilAsync(object):
 
     def __init__(self, ip, port, name, loop=None):
-        super().__init__(ip, port, name)
         self.loop = loop if loop else asyncio.get_event_loop()
+        self.ip = ip
+        self.port = port
+        self.name = name
+        self.sources = []
+        self.speakers = []
+        self.muted_speakers = {}
+        self.current_source = None
 
     def run_in_loop(self, task):
         return self.loop.run_until_complete(asyncio.ensure_future(task, loop=self.loop))
+
+    def _create_cmd(self, base_cmd):
+        request_id = str(random.randint(1, 1000))
+        base_cmd['requestID'] = request_id
+        cmd = str(base_cmd).replace(': ', ':').replace(', ', ',')
+        byte_cmd = bytes(f'{len(cmd)};{cmd}\r\n', encoding='ascii')
+        return request_id, byte_cmd
+
+    def _get_keywords(self, name):
+        name = "".join([ch if ch.isalnum() else " " for ch in name])
+        name = name.strip().lower()
+        while '  ' in name:
+            name = name.replace('  ', ' ')
+        keywords = name.split(' ')
+        return keywords
 
     async def _connect(self, sock):
         hello = b"com.rogueamoeba.protocol.slipstreamremote\nmajorversion=1,minorversion=5\nOK\n"
@@ -83,6 +104,22 @@ class AirfoilAsync(Airfoil):
         _, cmd = self._create_cmd(base_cmd)
         async for response in self._get_responses(cmd):
             yield response
+
+    async def _media_cmd(self, kind):
+        base_cmd = {"data": {"commandName": kind},  "_replyTypes":
+            ["subscribe", "getSourceMetadata", "connectToSpeaker", "disconnectSpeaker",
+             "setSpeakerVolume", "getSourceList", "remoteCommand", "selectSource"],
+             "request": "remoteCommand", "requestID": "-1"}
+        return await self._get_result(base_cmd)
+
+    async def play_pause(self):
+        return await self._media_cmd("PlayPause")
+
+    async def next_track(self):
+        return await self._media_cmd("NextTrack")
+
+    async def last_track(self):
+        return await self._media_cmd("PreviousTrack")
 
     async def get_speakers(self):
         base_cmd = {"data": { "notifications":
@@ -406,11 +443,101 @@ class AirfoilAsync(Airfoil):
         await self.fade_some(end_volume, seconds, ticks=ticks,
                              ids=[speaker.id for speaker in self.speakers if speaker.connected])
 
+    async def mute(self, *, id=None, name=None, keywords=[]):
+        base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
+        selected_speaker = await self._find_speaker(id, name, keywords)
+        if selected_speaker.volume:
+            self.muted_speakers[selected_speaker.id] = selected_speaker
+            base_cmd['data']['longIdentifier'] = selected_speaker.id
+            await self._get_result(base_cmd)
+            return selected_speaker.volume
+        return 0.0
+
+    async def unmute(self, *, default_volume=1.0, id=None, name=None, keywords=[]):
+        base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": None}}
+        selected_speaker = await self._find_speaker(id, name, keywords)
+        base_cmd['data']['longIdentifier'] = selected_speaker.id
+        if not selected_speaker.volume:
+            muted_speaker = self.muted_speakers.get(selected_speaker.id, None)
+            if muted_speaker:
+                base_cmd['data']['volume'] = muted_speaker.volume
+                del self.muted_speakers[selected_speaker.id]
+            else:
+                base_cmd['data']['volume'] = default_volume
+            await self._get_result(base_cmd)
+            return base_cmd['data']['volume']
+        else:
+            return selected_speaker.volume
+
+    async def mute_some(self, *, ids=[], names=[]):
+        if type(ids) is not list:
+            raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
+        if type(names) is not list:
+            raise ValueError(f'names must be a list of speaker names, not \'{type(names)}\'')
+        if (not ids and not names) or (ids and names):
+            raise ValueError('mute_some must be called with either a list of speaker ids or a list of speaker names'
+                             '\n\t\t\tprovide one or the other, but not both.')
+        await self.get_speakers()
+        muted = {}
+        base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
+        for speaker in self.speakers:
+            if (ids and speaker.id in ids) or (names and speaker.name in names):
+                if speaker.volume:
+                    cmd = copy.deepcopy(base_cmd)
+                    cmd['data']['longIdentifier'] = speaker.id
+                    self.muted_speakers[speaker.id] = muted[speaker.id] = speaker
+                    await self._get_result(cmd)
+                else:
+                    muted[speaker.id] = self.muted_speakers.get(speaker.id, speaker)
+                    #TODO raise exception if we didn't process all ids or all names
+        return muted
+
+    async def unmute_some(self, *, ids=[], names=[], default_volume=1.0):
+        if type(ids) is not list:
+            raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
+        if type(names) is not list:
+            raise ValueError(f'names must be a list of speaker names, not \'{type(names)}\'')
+        if (not ids and not names) or (ids and names):
+            raise ValueError('unmute_some must be called with either a list of speaker ids or a list of speaker names'
+                             '\n\t\t\tprovide one or the other, but not both.')
+        await self.get_speakers()
+        unmuted = {}
+        base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
+        for speaker in self.speakers:
+            if (ids and speaker.id in ids) or (names and speaker.name in names):
+                if not speaker.volume:
+                    cmd = copy.deepcopy(base_cmd)
+                    cmd['data']['longIdentifier'] = speaker.id
+                    if speaker.id in self.muted_speakers:
+                        volume = self.muted_speakers[speaker.id].volume
+                    else:
+                        volume = default_volume
+                    cmd['data']['volume'] = volume
+                    unmuted[speaker.id] = volume
+                    await self._get_result(cmd)
+                else:
+                    unmuted[speaker.id] = speaker.volume
+                    #TODO raise exception if we didn't process all ids or all names
+        return unmuted
+
+    async def mute_all(self):
+        await self.get_speakers()
+        await self.mute_some(ids=[speaker.id for speaker in self.speakers if speaker.volume])
+        return True
+
+    async def unmute_all(self, default_volume=1.0):
+        await self.get_speakers()
+        await self.unmute_some(ids=[speaker.id for speaker in self.speakers if not speaker.volume],
+                               default_volume=default_volume)
+        return True
+
     async def test(self):
         try:
-            print(await self.fade_volume(1.0, 2, name='office speaker'))
+            print(await self.mute_all())
+            await asyncio.sleep(1)
+            print(await self.unmute_all())
         finally:
             self.writer.close()
 
-a = AirfoilAsync('192.168.0.50', 56918, 'server')
-a.run_in_loop(a.test())
+# a = AirfoilAsync('192.168.0.50', 56918, 'server')
+# a.run_in_loop(a.test())

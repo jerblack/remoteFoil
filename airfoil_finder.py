@@ -1,15 +1,20 @@
 from airfoil import Airfoil
+from airfoil_async import AirfoilAsync
 from zeroconf import ServiceBrowser, Zeroconf
+import asyncio
 import time
 
 
 class AirfoilFinder(object):
     domain = "_slipstreamrem._tcp.local."
 
-    def __init__(self, on_add=None, on_remove=None):
+    def __init__(self, on_add=None, on_remove=None, async=False, async_loop=None):
         self.zeroconf = Zeroconf()
         self.browser = ServiceBrowser(self.zeroconf, self.domain, self)
         self.airfoils = {}
+        self.async = async
+        if async:
+            self.async_loop = async_loop if async_loop else asyncio.get_event_loop()
         self.on_add = on_add
         self.on_remove = on_remove
 
@@ -26,7 +31,7 @@ class AirfoilFinder(object):
         ip = '.'.join(str(i) for i in info.address)
         port = info.port
         name = name.split('.')[0].lower()
-        airfoil = Airfoil(ip, port, name)
+        airfoil = Airfoil(ip, port, name) if not self.async else AirfoilAsync(ip, port, name, loop=self.async_loop)
         self.airfoils[name] = airfoil
         print(f"Airfoil instance '{name}' found at {ip}:{port}")
         if self.on_add:
@@ -36,7 +41,7 @@ class AirfoilFinder(object):
         self.zeroconf.close()
 
     @staticmethod
-    def get_first_airfoil(timeout=10) -> Airfoil:
+    def get_first_airfoil(timeout=10, async=False):
         """
         find and return an instance of Airfoil on the network.
             the first instance that is found will be returned.
@@ -44,7 +49,7 @@ class AirfoilFinder(object):
         :param timeout: None or int number of seconds to wait before timing out
         :return: instance of Airfoil
         """
-        finder = AirfoilFinder()
+        finder = AirfoilFinder(async=async)
         if timeout is not None:
             while not finder.airfoils:
                 timeout -= 0.25
@@ -105,7 +110,10 @@ class AirfoilFinder(object):
 
 
 # a = AirfoilFinder.get_airfoil_by_ip('192.168.0.51')
-a = AirfoilFinder.get_first_airfoil()
+a = AirfoilFinder.get_first_airfoil(async=True)
+a.run_in_loop(a.test())
+
+
 # a = AirfoilFinder.get_airfoil_by_name('server')
 # a.fade_all(0.3, 4)
 # time.sleep(2)
