@@ -1,27 +1,16 @@
 import socket, json, random, sys, time, copy
 from collections import namedtuple
-from pprint import pprint
+
 
 class Airfoil(object):
-    def __init__(self, ip, port):
+    def __init__(self, ip, port, name):
         self.ip = ip
         self.port = port
+        self.name = name
         self.sources = []
         self.speakers = []
         self.muted_speakers = {}
         self.current_source = None
-
-    @classmethod
-    def get_first_airfoil(cls):
-        ip = "192.168.0.50"
-        port = 62305
-        return cls(ip, port)
-
-    @classmethod
-    def get_airfoil_by_name(cls, name):
-        ip = "192.168.0.50"
-        port = 62305
-        return cls(ip, port)
 
     def _connect(self, sock):
         hello = b"com.rogueamoeba.protocol.slipstreamremote\nmajorversion=1,minorversion=5\nOK\n"
@@ -102,21 +91,36 @@ class Airfoil(object):
                 raise ValueError(f'no speakers were found with the specified keywords:\n\t\t\t{keywords}')
         return selected_speaker
 
-    def _modify_speaker(self, base_cmd):
+    def _get_result(self, base_cmd):
         request_id, cmd = self._create_cmd(base_cmd)
         for response in self._get_responses(cmd):
             if 'replyID' in response and response['replyID'] == request_id:
                 return response['data']['success']
 
-    def watch(self, log=True):
+    def watch(self):
         base_cmd = {"request": "subscribe", "requestID": "-1", "data": {
-            "notifications": ["remoteControlChangedRequest", "speakerConnectedChanged", "speakerListChanged",
-                              "speakerNameChanged", "speakerPasswordChanged", "speakerVolumeChanged"]}}
+            "notifications": ["sourceMetadataChanged", "remoteControlChangedRequest", "speakerConnectedChanged",
+                              "speakerListChanged",  "speakerNameChanged", "speakerPasswordChanged",
+                              "speakerVolumeChanged"]}}
         _, cmd = self._create_cmd(base_cmd)
         for response in self._get_responses(cmd):
-            if log:
-                print(response)
             yield response
+
+    def _media_cmd(self, kind):
+        base_cmd = {"data": {"commandName": kind},
+                    "_replyTypes": ["subscribe", "getSourceMetadata", "connectToSpeaker", "disconnectSpeaker",
+                                    "setSpeakerVolume", "getSourceList", "remoteCommand", "selectSource"],
+                    "request": "remoteCommand", "requestID": "-1"}
+        return self._get_result(base_cmd)
+
+    def play_pause(self):
+        return self._media_cmd("PlayPause")
+
+    def next_track(self):
+        return self._media_cmd("NextTrack")
+
+    def last_track(self):
+        return self._media_cmd("PreviousTrack")
 
     def get_speakers(self):
         base_cmd = {"data": { "notifications":
@@ -147,7 +151,7 @@ class Airfoil(object):
         if selected_speaker.connected:
             print(f'speaker \'{selected_speaker.name}\' is already connected')
             return True
-        return self._modify_speaker(base_cmd)
+        return self._get_result(base_cmd)
 
     def disconnect_speaker(self, *, id=None, name=None, keywords=[]):
         base_cmd = {"request": "disconnectSpeaker", "requestID": "-1",
@@ -157,7 +161,7 @@ class Airfoil(object):
         if not selected_speaker.connected:
             print(f'speaker \'{selected_speaker.name}\' is already disconnected')
             return True
-        return self._modify_speaker(base_cmd)
+        return self._get_result(base_cmd)
 
     def toggle_speaker(self, *, id=None, name=None, keywords=[]):
         """Disconnect (if connected) and reconnect specified speaker.
@@ -336,7 +340,7 @@ class Airfoil(object):
             raise ValueError(f'volume must be a \'float\', not \'{type(volume)}\'')
         selected_speaker = self._find_speaker(id, name, keywords)
         base_cmd['data']['longIdentifier'] = selected_speaker.id
-        return self._modify_speaker(base_cmd)
+        return self._get_result(base_cmd)
 
     def fade_volume(self, end_volume, seconds, *, ticks=10, id=None, name=None, keywords=[]):
         """
@@ -377,10 +381,10 @@ class Airfoil(object):
             base_cmd['data']['volume'] = round(current_volume, 6)
             if i == ticks-1:
                 base_cmd['data']['volume'] = end_volume
-            self._modify_speaker(base_cmd)
+            self._get_result(base_cmd)
             time.sleep(wait)
 
-    def fade_volumes(self, end_volume, seconds, *, ticks=10, ids=[], names=[]):
+    def fade_some(self, end_volume, seconds, *, ticks=10, ids=[], names=[]):
         """
         fade_volumes will change the volume of a collection of speakers simultaneously over a specified period of
         time
@@ -430,8 +434,13 @@ class Airfoil(object):
                 if i == ticks-1:
                     speaker['cmd']['data']['volume'] = end_volume
                 # print(speaker['cmd'])
-                self._modify_speaker(speaker['cmd'])
+                self._get_result(speaker['cmd'])
             time.sleep(wait)
+
+    def fade_all(self, end_volume, seconds, *, ticks=10):
+        self.get_speakers()
+        self.fade_some(end_volume, seconds, ticks=ticks,
+                       ids=[speaker.id for speaker in self.speakers if speaker.connected])
 
     def mute(self, *, id=None, name=None, keywords=[]):
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
@@ -439,7 +448,7 @@ class Airfoil(object):
         if selected_speaker.volume:
             self.muted_speakers[selected_speaker.id] = selected_speaker
             base_cmd['data']['longIdentifier'] = selected_speaker.id
-            self._modify_speaker(base_cmd)
+            self._get_result(base_cmd)
             return selected_speaker.volume
         return 0.0
 
@@ -454,12 +463,12 @@ class Airfoil(object):
                 del self.muted_speakers[selected_speaker.id]
             else:
                 base_cmd['data']['volume'] = default_volume
-            self._modify_speaker(base_cmd)
+            self._get_result(base_cmd)
             return base_cmd['data']['volume']
         else:
             return selected_speaker.volume
 
-    def mute_some(self, *, ids, names):
+    def mute_some(self, *, ids=[], names=[]):
         if type(ids) is not list:
             raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
         if type(names) is not list:
@@ -472,43 +481,87 @@ class Airfoil(object):
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
         for speaker in self.speakers:
             if (ids and speaker.id in ids) or (names and speaker.name in names):
-                cmd = copy.deepcopy(base_cmd)
-                cmd['data']['longIdentifier'] = speaker.id
-                self.muted_speakers[speaker.id] = muted[speaker.id] = speaker
-                self._modify_speaker(cmd)
-                #TODO raise exception if we didn't process all ids or all names
+                if speaker.volume:
+                    cmd = copy.deepcopy(base_cmd)
+                    cmd['data']['longIdentifier'] = speaker.id
+                    self.muted_speakers[speaker.id] = muted[speaker.id] = speaker
+                    self._get_result(cmd)
+                else:
+                    muted[speaker.id] = self.muted_speakers.get(speaker.id, speaker)
+                    #TODO raise exception if we didn't process all ids or all names
         return muted
 
-    def unmute_some(self, ids, default_volume=1.0):
-        pass
+    def unmute_some(self, *, ids=[], names=[], default_volume=1.0):
+        if type(ids) is not list:
+            raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
+        if type(names) is not list:
+            raise ValueError(f'names must be a list of speaker names, not \'{type(names)}\'')
+        if (not ids and not names) or (ids and names):
+            raise ValueError('unmute_some must be called with either a list of speaker ids or a list of speaker names'
+                             '\n\t\t\tprovide one or the other, but not both.')
+        self.get_speakers()
+        unmuted = {}
+        base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
+        for speaker in self.speakers:
+            if (ids and speaker.id in ids) or (names and speaker.name in names):
+                if not speaker.volume:
+                    cmd = copy.deepcopy(base_cmd)
+                    cmd['data']['longIdentifier'] = speaker.id
+                    if speaker.id in self.muted_speakers:
+                        volume = self.muted_speakers[speaker.id].volume
+                    else:
+                        volume = default_volume
+                    cmd['data']['volume'] = volume
+                    unmuted[speaker.id] = volume
+                    self._get_result(cmd)
+                else:
+                    unmuted[speaker.id] = speaker.volume
+                    #TODO raise exception if we didn't process all ids or all names
+        return unmuted
 
     def mute_all(self):
-        pass
+        self.get_speakers()
+        self.mute_some(ids=[speaker.id for speaker in self.speakers if speaker.volume])
 
     def unmute_all(self, default_volume=1.0):
-        pass
+        self.get_speakers()
+        self.unmute_some(ids=[speaker.id for speaker in self.speakers if not speaker.volume],
+                         default_volume=default_volume)
+        
 
 
-
-
-a = Airfoil.get_first_airfoil()
-print(a.mute(name='office speaker'))
-time.sleep(2)
-a.muted_speakers = {}
-a.unmute(name='office speaker')
+# print(a.mute(name='office speaker'))
+# time.sleep(2)
+# a.muted_speakers = {}
+# a.unmute(name='office speaker')
 # for s in a.get_speakers().values():
 #     print(s.name)
 #     print(s.id)
     # print(s.volume)
     # print('------')
 # a.toggle_speaker(name='office speaker')
+# result = a.mute_some(names=['Office speaker', 'Bedroom speaker'])
+# print(result)
+# a.muted_speakers = {}
+# time.sleep(2)
+# result = a.mute_some(names=['Office speaker', 'Bedroom speaker'])
+# print(result)
 
+
+# result = a.mute_some(ids=['Chromecast-Audio-20dcfed9e9bd8cf76a1ad34691dc32ad@Office speaker',
+#                           'Chromecast-Audio-99130c3591fa2bbff26b770eda819eff@Bedroom speaker'])
+# print(result)
+# time.sleep(2)
+# result = a.unmute_some(ids=['Chromecast-Audio-20dcfed9e9bd8cf76a1ad34691dc32ad@Office speaker',
+#                             'Chromecast-Audio-99130c3591fa2bbff26b770eda819eff@Bedroom speaker'])
+# print(result)
 
 # print(a.get_speakers())
 # a.fade_volume(1, 5, ticks=100, name='office speaker')
 # a.fade_volumes(1, 5, ticks=100, ids=['Chromecast-Audio-20dcfed9e9bd8cf76a1ad34691dc32ad@Office speaker',
 #                                       'Chromecast-Audio-99130c3591fa2bbff26b770eda819eff@Bedroom speaker'])
-# a.watch()
+# for event in a.watch(log=False):
+#     print(event)
 # src = a.get_sources()
 # print(src)
 # a.set_source(id=r'C:\Users\jeremy\AppData\Roaming\Spotify\spotify.exe')

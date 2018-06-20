@@ -9,9 +9,9 @@ on startup
 
 which airfoil to use
     the url scheme for most verbs will look something like this
-        {remoteFoil server}/{airfoil instance display name}/{verb}/{option}
-        http://ubuntuvm/airfoil1_pc/speakers
-        http://ubuntuvm/airfoil1_pc/speaker/connect/living_room_speaker
+        {remoteFoil server}/{airfoil instance name}/{verb}/{option}
+        http://ubuntuvm/desktop/speakers
+        http://ubuntuvm/desktop/speaker/connect/living_room_speaker
     call root url to get list of available airfoil speakers
     if debug=true , calling root also returns a list of all current uris to aid in setup
         maybe turn that off when done setting up, but it's not like the undocumented socket we're talking to using
