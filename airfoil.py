@@ -51,7 +51,7 @@ class Airfoil(object):
         byte_cmd = bytes(f'{len(cmd)};{cmd}\r\n', encoding='ascii')
         return request_id, byte_cmd
 
-    def _get_keywords(self, name):
+    def get_keywords(self, name):
         name = "".join([ch if ch.isalnum() else " " for ch in name])
         name = name.strip().lower()
         while '  ' in name:
@@ -65,7 +65,7 @@ class Airfoil(object):
             if 'replyID' in response and response['replyID'] == request_id:
                 return response['data']['success']
 
-    def _find_speaker(self, id=None, name=None, keywords=[]):
+    def find_speaker(self, id=None, name=None, keywords=[]):
         caller = sys._getframe(1).f_code.co_name
         speakers = self.get_speakers()
         selected_speaker = None
@@ -136,7 +136,7 @@ class Airfoil(object):
                 if 'speakers' in response['data']:
                     speakers = []
                     for s in response['data']['speakers']:
-                        keywords = self._get_keywords(s.get('name'))
+                        keywords = self.get_keywords(s.get('name'))
                         spk = speaker(s.get('name'), s.get('type'), s.get('longIdentifier'), s.get('volume'),
                                       s.get('connected'), s.get('password'), keywords)
                         speakers.append(spk)
@@ -146,7 +146,7 @@ class Airfoil(object):
     def connect_speaker(self, *, id=None, name=None, keywords=[]):
         base_cmd = {"request": "connectToSpeaker", "requestID": "-1",
                     "data": {"longIdentifier": None}}
-        selected_speaker = self._find_speaker(id, name, keywords)
+        selected_speaker = self.find_speaker(id, name, keywords)
         base_cmd['data']['longIdentifier'] = selected_speaker.id
         if selected_speaker.connected:
             print(f'speaker \'{selected_speaker.name}\' is already connected')
@@ -156,7 +156,7 @@ class Airfoil(object):
     def disconnect_speaker(self, *, id=None, name=None, keywords=[]):
         base_cmd = {"request": "disconnectSpeaker", "requestID": "-1",
                     "data": {"longIdentifier": None}}
-        selected_speaker = self._find_speaker(id, name, keywords)
+        selected_speaker = self.find_speaker(id, name, keywords)
         base_cmd['data']['longIdentifier'] = selected_speaker.id
         if not selected_speaker.connected:
             print(f'speaker \'{selected_speaker.name}\' is already disconnected')
@@ -166,7 +166,7 @@ class Airfoil(object):
     def toggle_speaker(self, *, id=None, name=None, keywords=[]):
         """Disconnect (if connected) and reconnect specified speaker.
         Solves problems when Airfoil gets in a bad state"""
-        selected_speaker = self._find_speaker(id, name, keywords)
+        selected_speaker = self.find_speaker(id, name, keywords)
         result = True
         if selected_speaker.connected:
             result = self.disconnect_speaker(id=selected_speaker.id)
@@ -200,7 +200,7 @@ class Airfoil(object):
                 sources = []
                 def add_to_source(src, type):
                     icon = src.get('icon', '') if source_icon else ''
-                    keywords = self._get_keywords(src['friendlyName'])
+                    keywords = self.get_keywords(src['friendlyName'])
                     sources.append(source(src['friendlyName'], src['identifier'], type, keywords, icon))
                 for src in data.get('audioDevices', []):
                     add_to_source(src, type='audio_device')
@@ -338,9 +338,27 @@ class Airfoil(object):
             base_cmd['data']['volume'] = volume
         else:
             raise ValueError(f'volume must be a \'float\', not \'{type(volume)}\'')
-        selected_speaker = self._find_speaker(id, name, keywords)
+        selected_speaker = self.find_speaker(id, name, keywords)
         base_cmd['data']['longIdentifier'] = selected_speaker.id
         return self._get_result(base_cmd)
+
+    def set_volumes(self, volume, *, ids=[], names=[]):
+        base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": None}}
+        if type(volume) in [float, int]:
+            if volume > 1 or volume < 0:
+                raise ValueError('volume must a float or int from 0.0 to 1.0')
+            if type(ids) is not list:
+                raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
+            if type(names) is not list:
+                raise ValueError(f'names must be a list of speaker names, not \'{type(names)}\'')
+            if (not ids and not names) or (ids and names):
+                raise ValueError(
+                    'fade_volumes must be called with either a list of speaker ids or a list of speaker names'
+                    '\n\t\t\tprovide one or the other, but not both.')
+            base_cmd['data']['volume'] = volume
+        else:
+            raise ValueError(f'volume must be a \'float\', not \'{type(volume)}\'')
+
 
     def fade_volume(self, end_volume, seconds, *, ticks=10, id=None, name=None, keywords=[]):
         """
@@ -370,7 +388,7 @@ class Airfoil(object):
         if end_volume > 1 or end_volume < 0:
             raise ValueError('volume must a float or int from 0.0 to 1.0')
 
-        selected_speaker = self._find_speaker(id, name, keywords)
+        selected_speaker = self.find_speaker(id, name, keywords)
         current_volume = selected_speaker.volume
         base_cmd['data']['longIdentifier'] = selected_speaker.id
         wait = round(seconds / ticks, 4)
@@ -384,7 +402,7 @@ class Airfoil(object):
             self._get_result(base_cmd)
             time.sleep(wait)
 
-    def fade_some(self, end_volume, seconds, *, ticks=10, ids=[], names=[]):
+    def fade_volumes(self, end_volume, seconds, *, ticks=10, ids=[], names=[]):
         """
         fade_volumes will change the volume of a collection of speakers simultaneously over a specified period of
         time
@@ -439,12 +457,12 @@ class Airfoil(object):
 
     def fade_all(self, end_volume, seconds, *, ticks=10):
         self.get_speakers()
-        self.fade_some(end_volume, seconds, ticks=ticks,
-                       ids=[speaker.id for speaker in self.speakers if speaker.connected])
+        self.fade_volumes(end_volume, seconds, ticks=ticks,
+                          ids=[speaker.id for speaker in self.speakers if speaker.connected])
 
     def mute(self, *, id=None, name=None, keywords=[]):
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
-        selected_speaker = self._find_speaker(id, name, keywords)
+        selected_speaker = self.find_speaker(id, name, keywords)
         if selected_speaker.volume:
             self.muted_speakers[selected_speaker.id] = selected_speaker
             base_cmd['data']['longIdentifier'] = selected_speaker.id
@@ -454,7 +472,7 @@ class Airfoil(object):
 
     def unmute(self, *, default_volume=1.0, id=None, name=None, keywords=[]):
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": None}}
-        selected_speaker = self._find_speaker(id, name, keywords)
+        selected_speaker = self.find_speaker(id, name, keywords)
         base_cmd['data']['longIdentifier'] = selected_speaker.id
         if not selected_speaker.volume:
             muted_speaker = self.muted_speakers.get(selected_speaker.id, None)
@@ -576,7 +594,7 @@ class Airfoil(object):
 # a.toggle_speakers()
 # a.set_source()
 # a.disconnect_speaker("SHIELD-Android-TV-fd75fa2dbc4e513427f5926062f037b3@Bedroom Shield")
-# a._get_keywords("Microphone (Generic USB Audio Device   )")
+# a.get_keywords("Microphone (Generic USB Audio Device   )")
 # for s in a.get_sources():
 #     print('name: ', s.name)
 #     print('  id: ', s.id)

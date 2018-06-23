@@ -14,8 +14,16 @@ class AirfoilAsync(object):
         self.muted_speakers = {}
         self.current_source = None
 
+    # def run_in_loop(self, task):
+    #     return self.loop.run_until_complete(asyncio.ensure_future(task, loop=self.loop))
+
     def run_in_loop(self, task):
-        return self.loop.run_until_complete(asyncio.ensure_future(task, loop=self.loop))
+        try:
+            response = self.loop.run_until_complete(asyncio.ensure_future(task, loop=self.loop))
+        finally:
+            self.loop.run_until_complete(self.loop.shutdown_asyncgens())
+            self.loop.close()
+        return response
 
     def _create_cmd(self, base_cmd):
         request_id = str(random.randint(1, 1000))
@@ -24,7 +32,7 @@ class AirfoilAsync(object):
         byte_cmd = bytes(f'{len(cmd)};{cmd}\r\n', encoding='ascii')
         return request_id, byte_cmd
 
-    def _get_keywords(self, name):
+    def get_keywords(self, name):
         name = "".join([ch if ch.isalnum() else " " for ch in name])
         name = name.strip().lower()
         while '  ' in name:
@@ -64,7 +72,7 @@ class AirfoilAsync(object):
             if 'replyID' in response and response['replyID'] == request_id:
                 return response['data']['success']
 
-    async def _find_speaker(self, id=None, name=None, keywords=[]):
+    async def find_speaker(self, id=None, name=None, keywords=[]):
         caller = sys._getframe(1).f_code.co_name
         speakers = await self.get_speakers()
         selected_speaker = None
@@ -135,7 +143,7 @@ class AirfoilAsync(object):
                 if 'speakers' in response['data']:
                     speakers = []
                     for s in response['data']['speakers']:
-                        keywords = self._get_keywords(s.get('name'))
+                        keywords = self.get_keywords(s.get('name'))
                         spk = speaker(s.get('name'), s.get('type'), s.get('longIdentifier'), s.get('volume'),
                                       s.get('connected'), s.get('password'), keywords)
                         speakers.append(spk)
@@ -145,7 +153,7 @@ class AirfoilAsync(object):
     async def connect_speaker(self, *, id=None, name=None, keywords=[]):
         base_cmd = {"request": "connectToSpeaker", "requestID": "-1",
                     "data": {"longIdentifier": None}}
-        selected_speaker = await self._find_speaker(id, name, keywords)
+        selected_speaker = await self.find_speaker(id, name, keywords)
         base_cmd['data']['longIdentifier'] = selected_speaker.id
         if selected_speaker.connected:
             print(f'speaker \'{selected_speaker.name}\' is already connected')
@@ -155,7 +163,7 @@ class AirfoilAsync(object):
     async def disconnect_speaker(self, *, id=None, name=None, keywords=[]):
         base_cmd = {"request": "disconnectSpeaker", "requestID": "-1",
                     "data": {"longIdentifier": None}}
-        selected_speaker = await self._find_speaker(id, name, keywords)
+        selected_speaker = await self.find_speaker(id, name, keywords)
         base_cmd['data']['longIdentifier'] = selected_speaker.id
         if not selected_speaker.connected:
             print(f'speaker \'{selected_speaker.name}\' is already disconnected')
@@ -165,7 +173,7 @@ class AirfoilAsync(object):
     async def toggle_speaker(self, *, id=None, name=None, keywords=[]):
         """Disconnect (if connected) and reconnect specified speaker.
         Solves problems when Airfoil gets in a bad state"""
-        selected_speaker = await self._find_speaker(id, name, keywords)
+        selected_speaker = await self.find_speaker(id, name, keywords)
         result = True
         if selected_speaker.connected:
             result = await self.disconnect_speaker(id=selected_speaker.id)
@@ -201,7 +209,7 @@ class AirfoilAsync(object):
 
                 def add_to_source(src, type):
                     icon = src.get('icon', '') if source_icon else ''
-                    keywords = self._get_keywords(src['friendlyName'])
+                    keywords = self.get_keywords(src['friendlyName'])
                     sources.append(source(src['friendlyName'], src['identifier'], type, keywords, icon))
                 for src in data.get('audioDevices', []):
                     add_to_source(src, type='audio_device')
@@ -339,7 +347,7 @@ class AirfoilAsync(object):
             base_cmd['data']['volume'] = volume
         else:
             raise ValueError(f'volume must be a \'float\', not \'{type(volume)}\'')
-        selected_speaker = await self._find_speaker(id, name, keywords)
+        selected_speaker = await self.find_speaker(id, name, keywords)
         base_cmd['data']['longIdentifier'] = selected_speaker.id
         return await self._get_result(base_cmd)
 
@@ -371,7 +379,7 @@ class AirfoilAsync(object):
         if end_volume > 1 or end_volume < 0:
             raise ValueError('volume must a float or int from 0.0 to 1.0')
 
-        selected_speaker = await self._find_speaker(id, name, keywords)
+        selected_speaker = await self.find_speaker(id, name, keywords)
         current_volume = selected_speaker.volume
         base_cmd['data']['longIdentifier'] = selected_speaker.id
         wait = round(seconds / ticks, 4)
@@ -445,7 +453,7 @@ class AirfoilAsync(object):
 
     async def mute(self, *, id=None, name=None, keywords=[]):
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
-        selected_speaker = await self._find_speaker(id, name, keywords)
+        selected_speaker = await self.find_speaker(id, name, keywords)
         if selected_speaker.volume:
             self.muted_speakers[selected_speaker.id] = selected_speaker
             base_cmd['data']['longIdentifier'] = selected_speaker.id
@@ -455,7 +463,7 @@ class AirfoilAsync(object):
 
     async def unmute(self, *, default_volume=1.0, id=None, name=None, keywords=[]):
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": None}}
-        selected_speaker = await self._find_speaker(id, name, keywords)
+        selected_speaker = await self.find_speaker(id, name, keywords)
         base_cmd['data']['longIdentifier'] = selected_speaker.id
         if not selected_speaker.volume:
             muted_speaker = self.muted_speakers.get(selected_speaker.id, None)

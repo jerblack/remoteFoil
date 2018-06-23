@@ -45,7 +45,7 @@ majorversion=1,minorversion=5
 
 
 # set audio source to Spotify
-> semt
+> sent
 153;{"request":"selectSource","requestID":"5","data":{"type":"runningApplications","identifier":"C:\\Users\\jeremy\\AppData\\Roaming\\Spotify\\spotify.exe"}}
 > rcvd
 35;{"request":"sourceMetadataChanged"}

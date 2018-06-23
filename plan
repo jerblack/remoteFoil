@@ -25,7 +25,7 @@ which airfoil to use
     allow for specifying name when creating instance or from cli
 
 with airfoil selected, the following endpoints will be created
-    /  <- return list of airfoils by uri name
+    /  <- return all possible uris if debug, else, return array of speaker names, ips, ports
     /speakers
         retrieve list of speakers with name, icon, volume, connect state, id
         call with speaker name should use name of speaker lower case with underscores for spaces in uri
@@ -66,3 +66,54 @@ https://aiohttp.readthedocs.io/en/stable/
 
 
 
+
+parse urls
+
+if length parts 1
+    part[0] == ''
+        return json object with list of airfoil instances
+    part[0] == 'name'
+        return json object with (ip, host, name) of airfoil
+if length parts 2
+    if name in finder airfoils
+        part[1] = speakers
+            return json with speakers
+        part[1] = sources
+            return json with sources
+        part[1] = now_playing
+           return json with current track
+    else none
+if length > 2
+    part[1] = speaker
+        get_speakers
+        if speaker in speaker list by name or keywords
+            part[2] = connect -> connect speaker
+            part[2] = disconnect -> disconnect speaker
+            part[2] = toggle -> toggle speaker
+            part[2] = mute -> mute speaker
+            part[2] = unmute -> unmute speaker
+            part[2] = volume -> volume/part[3]
+            part[2] = fade -> fade_volume
+                part[3] -> end_volume
+                part[4] -> seconds
+                part[5] -> ticks
+    part[1] = speakers
+        get_speakers
+        part[2] = fade -> fade volume for all speakers unless ids or names are passed
+            part[3] -> end_volume
+            part[4] -> seconds, optional, default 5
+            part[5] -> ticks, optional, default 10
+        part[2] = toggle -> toggle all speakers unless ids or names are passed
+        part[2] = mute -> mute all speakers unless ids or names are passed
+        part[2] = unmute -> unmute all speakers unless ids or names are passed
+        part[2] = volume ->  set volume on all speakers unless ids or names are passed
+            part[3] -> volume, required
+    part[1] = play -> play
+    part[1] = next -> next_track
+    part[1] = last -> last_track
+    part[1] = source -> get current source
+        part[2] = set to source if valid source name, can be valid name, id, or keywords
+
+
+
+if length

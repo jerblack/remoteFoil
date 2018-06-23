@@ -1,6 +1,8 @@
 from airfoil import Airfoil
 from airfoil_async import AirfoilAsync
 from zeroconf import ServiceBrowser, Zeroconf
+import zeroconf
+import aiozeroconf
 import asyncio
 import time
 
@@ -9,12 +11,17 @@ class AirfoilFinder(object):
     domain = "_slipstreamrem._tcp.local."
 
     def __init__(self, on_add=None, on_remove=None, async=False, async_loop=None):
-        self.zeroconf = Zeroconf()
-        self.browser = ServiceBrowser(self.zeroconf, self.domain, self)
         self.airfoils = {}
         self.async = async
-        if async:
-            self.async_loop = async_loop if async_loop else asyncio.get_event_loop()
+        # if async:
+        #     self.async_loop = async_loop if async_loop else asyncio.get_event_loop()
+        #     self.zeroconf = aiozeroconf.Zeroconf(self.async_loop, address_family=[2])
+        #     self.browser = aiozeroconf.ServiceBrowser(self.zeroconf, self.domain, self)
+        # else:
+        self.zeroconf = zeroconf.Zeroconf()
+        self.browser = zeroconf.ServiceBrowser(self.zeroconf, self.domain, self)
+
+
         self.on_add = on_add
         self.on_remove = on_remove
 
@@ -109,9 +116,10 @@ class AirfoilFinder(object):
 
 
 
-# a = AirfoilFinder.get_airfoil_by_ip('192.168.0.51')
-a = AirfoilFinder.get_first_airfoil(async=True)
-a.run_in_loop(a.test())
+# a = AirfoilFinder.get_airfoil_by_ip('192.168.0.50')
+# a = AirfoilFinder.get_first_airfoil(async=True)
+# print(a.name)
+# a.run_in_loop(a.test())
 
 
 # a = AirfoilFinder.get_airfoil_by_name('server')
