@@ -356,9 +356,9 @@ class Airfoil(object):
                     'fade_volumes must be called with either a list of speaker ids or a list of speaker names'
                     '\n\t\t\tprovide one or the other, but not both.')
             base_cmd['data']['volume'] = volume
+            # TODO: finish set volumes
         else:
             raise ValueError(f'volume must be a \'float\', not \'{type(volume)}\'')
-
 
     def fade_volume(self, end_volume, seconds, *, ticks=10, id=None, name=None, keywords=[]):
         """
@@ -401,6 +401,7 @@ class Airfoil(object):
                 base_cmd['data']['volume'] = end_volume
             self._get_result(base_cmd)
             time.sleep(wait)
+        return True
 
     def fade_volumes(self, end_volume, seconds, *, ticks=10, ids=[], names=[]):
         """
@@ -454,10 +455,14 @@ class Airfoil(object):
                 # print(speaker['cmd'])
                 self._get_result(speaker['cmd'])
             time.sleep(wait)
+        return True
+
+    def fade_some(self, end_volume, seconds, *, ticks=10, ids=[], names=[]):
+        return self.fade_volumes(end_volume, seconds, ticks=ticks, ids=ids, names=names)
 
     def fade_all(self, end_volume, seconds, *, ticks=10):
         self.get_speakers()
-        self.fade_volumes(end_volume, seconds, ticks=ticks,
+        return self.fade_volumes(end_volume, seconds, ticks=ticks,
                           ids=[speaker.id for speaker in self.speakers if speaker.connected])
 
     def mute(self, *, id=None, name=None, keywords=[]):
