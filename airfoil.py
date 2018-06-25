@@ -122,7 +122,7 @@ class Airfoil(object):
     def last_track(self):
         return self._media_cmd("PreviousTrack")
 
-    def get_speakers(self):
+    def get_speakers(self, ids=[], names=[]):
         base_cmd = {"data": { "notifications":
             ["speakerListChanged", "speakerConnectedChanged", "speakerPasswordChanged",
              "speakerVolumeChanged", "speakerNameChanged", "remoteControlChangedRequest"]},
@@ -139,7 +139,11 @@ class Airfoil(object):
                         keywords = self.get_keywords(s.get('name'))
                         spk = speaker(s.get('name'), s.get('type'), s.get('longIdentifier'), s.get('volume'),
                                       s.get('connected'), s.get('password'), keywords)
-                        speakers.append(spk)
+                        if ids or names:
+                            if spk.id in ids or spk.name in names:
+                                speakers.append(spk)
+                        else:
+                            speakers.append(spk)
                     self.speakers = speakers
                     return speakers
 
@@ -330,7 +334,7 @@ class Airfoil(object):
                 self.current_source = result
                 return result
 
-    def set_volume(self, volume, *, id=None, name=None, keywords=[]):
+    def set_volume(self, volume, *, id=None, name=None, keywords=[], include_disconnected=False):
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": None}}
         if type(volume) in [float, int]:
             if volume > 1 or volume < 0:
@@ -340,10 +344,11 @@ class Airfoil(object):
             raise ValueError(f'volume must be a \'float\', not \'{type(volume)}\'')
         selected_speaker = self.find_speaker(id, name, keywords)
         base_cmd['data']['longIdentifier'] = selected_speaker.id
-        return self._get_result(base_cmd)
+        if include_disconnected or (not include_disconnected and not selected_speaker.connected):
+            self._get_result(base_cmd)
+        return self.get_speakers(ids=[selected_speaker.id])
 
-    def set_volumes(self, volume, *, ids=[], names=[]):
-        base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": None}}
+    def set_volumes(self, volume, *, ids=[], names=[], include_disconnected=False):
         if type(volume) in [float, int]:
             if volume > 1 or volume < 0:
                 raise ValueError('volume must a float or int from 0.0 to 1.0')
@@ -351,14 +356,27 @@ class Airfoil(object):
                 raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
             if type(names) is not list:
                 raise ValueError(f'names must be a list of speaker names, not \'{type(names)}\'')
-            if (not ids and not names) or (ids and names):
-                raise ValueError(
-                    'fade_volumes must be called with either a list of speaker ids or a list of speaker names'
-                    '\n\t\t\tprovide one or the other, but not both.')
-            base_cmd['data']['volume'] = volume
-            # TODO: finish set volumes
+
+            self.get_speakers()
+            to_change = []
+            base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data":
+                {"longIdentifier": None, "volume": volume}}
+
+            for speaker in self.speakers:
+                if (ids and speaker.id in ids) or (names and speaker.name in names) or (not ids and not names):
+                    cmd = copy.deepcopy(base_cmd)
+                    cmd['data']['longIdentifier'] = speaker.id
+                    to_change.append(speaker.id)
+                    self._get_result(cmd)
+            return self.get_speakers(ids=to_change)
         else:
             raise ValueError(f'volume must be a \'float\', not \'{type(volume)}\'')
+
+    def set_volume_some(self, volume, *, ids=[], names=[], include_disconnected=False):
+        return self.set_volumes(volume, ids, names)
+
+    def set_volume_all(self, volume, include_disconnected=False):
+        return self.set_volumes(volume)
 
     def fade_volume(self, end_volume, seconds, *, ticks=10, id=None, name=None, keywords=[]):
         """
@@ -401,9 +419,9 @@ class Airfoil(object):
                 base_cmd['data']['volume'] = end_volume
             self._get_result(base_cmd)
             time.sleep(wait)
-        return True
+        return self.get_speakers(ids=[selected_speaker.id])
 
-    def fade_volumes(self, end_volume, seconds, *, ticks=10, ids=[], names=[]):
+    def fade_volumes(self, end_volume, seconds, *, ticks=10, ids=[], names=[], include_disconnected=False):
         """
         fade_volumes will change the volume of a collection of speakers simultaneously over a specified period of
         time
@@ -426,15 +444,15 @@ class Airfoil(object):
             raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
         if type(names) is not list:
             raise ValueError(f'names must be a list of speaker names, not \'{type(names)}\'')
-        if (not ids and not names) or (ids and names):
-            raise ValueError('fade_volumes must be called with either a list of speaker ids or a list of speaker names'
-                             '\n\t\t\tprovide one or the other, but not both.')
+
         self.get_speakers()
         speakers = []
         wait = round(seconds / ticks, 4)
 
         for speaker in self.speakers:
-            if (ids and speaker.id in ids) or (names and speaker.name in names):
+            if (ids and speaker.id in ids) \
+                    or (names and speaker.name in names)\
+                    or (not ids and not names and (speaker.connected or include_disconnected)):
                 cmd = copy.deepcopy(base_cmd)
                 cmd['data']['longIdentifier'] = speaker.id
                 increments = round((end_volume - speaker.volume) / ticks, 6)
@@ -455,15 +473,14 @@ class Airfoil(object):
                 # print(speaker['cmd'])
                 self._get_result(speaker['cmd'])
             time.sleep(wait)
-        return True
+        return self.get_speakers(ids=[s['speaker'].id for s in speakers])
 
-    def fade_some(self, end_volume, seconds, *, ticks=10, ids=[], names=[]):
-        return self.fade_volumes(end_volume, seconds, ticks=ticks, ids=ids, names=names)
+    def fade_some(self, end_volume, seconds, *, ticks=10, ids=[], names=[], include_disconnected=False):
+        return self.fade_volumes(end_volume, seconds, ticks=ticks, ids=ids, names=names,
+                                 include_disconnected=include_disconnected)
 
-    def fade_all(self, end_volume, seconds, *, ticks=10):
-        self.get_speakers()
-        return self.fade_volumes(end_volume, seconds, ticks=ticks,
-                          ids=[speaker.id for speaker in self.speakers if speaker.connected])
+    def fade_all(self, end_volume, seconds, *, ticks=10, include_disconnected=False):
+        return self.fade_volumes(end_volume, seconds, ticks=ticks, include_disconnected=include_disconnected)
 
     def mute(self, *, id=None, name=None, keywords=[]):
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
@@ -472,8 +489,7 @@ class Airfoil(object):
             self.muted_speakers[selected_speaker.id] = selected_speaker
             base_cmd['data']['longIdentifier'] = selected_speaker.id
             self._get_result(base_cmd)
-            return selected_speaker.volume
-        return 0.0
+        return self.get_speakers(ids=[selected_speaker.id])
 
     def unmute(self, *, default_volume=1.0, id=None, name=None, keywords=[]):
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": None}}
@@ -487,34 +503,30 @@ class Airfoil(object):
             else:
                 base_cmd['data']['volume'] = default_volume
             self._get_result(base_cmd)
-            return base_cmd['data']['volume']
-        else:
-            return selected_speaker.volume
+        return self.get_speakers(ids=[selected_speaker.id])
 
-    def mute_some(self, *, ids=[], names=[]):
+    def mute_some(self, *, ids=[], names=[], include_disconnected=False):
         if type(ids) is not list:
             raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
         if type(names) is not list:
             raise ValueError(f'names must be a list of speaker names, not \'{type(names)}\'')
-        if (not ids and not names) or (ids and names):
-            raise ValueError('mute_some must be called with either a list of speaker ids or a list of speaker names'
-                             '\n\t\t\tprovide one or the other, but not both.')
         self.get_speakers()
-        muted = {}
+
+        muted = []
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
         for speaker in self.speakers:
-            if (ids and speaker.id in ids) or (names and speaker.name in names):
+            if (ids and speaker.id in ids) \
+                    or (names and speaker.name in names) \
+                    or (not ids and not names and (speaker.connected or include_disconnected)):
                 if speaker.volume:
                     cmd = copy.deepcopy(base_cmd)
                     cmd['data']['longIdentifier'] = speaker.id
-                    self.muted_speakers[speaker.id] = muted[speaker.id] = speaker
+                    self.muted_speakers[speaker.id] = speaker
                     self._get_result(cmd)
-                else:
-                    muted[speaker.id] = self.muted_speakers.get(speaker.id, speaker)
-                    #TODO raise exception if we didn't process all ids or all names
-        return muted
+                muted.append(speaker.id)
+        return self.get_speakers(ids=muted)
 
-    def unmute_some(self, *, ids=[], names=[], default_volume=1.0):
+    def unmute_some(self, *, ids=[], names=[], default_volume=1.0, include_disconnected=False):
         if type(ids) is not list:
             raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
         if type(names) is not list:
@@ -523,10 +535,12 @@ class Airfoil(object):
             raise ValueError('unmute_some must be called with either a list of speaker ids or a list of speaker names'
                              '\n\t\t\tprovide one or the other, but not both.')
         self.get_speakers()
-        unmuted = {}
+        unmuted = []
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
         for speaker in self.speakers:
-            if (ids and speaker.id in ids) or (names and speaker.name in names):
+            if (ids and speaker.id in ids) \
+                    or (names and speaker.name in names) \
+                    or (not ids and not names and (speaker.connected or include_disconnected)):
                 if not speaker.volume:
                     cmd = copy.deepcopy(base_cmd)
                     cmd['data']['longIdentifier'] = speaker.id
@@ -535,25 +549,26 @@ class Airfoil(object):
                     else:
                         volume = default_volume
                     cmd['data']['volume'] = volume
-                    unmuted[speaker.id] = volume
                     self._get_result(cmd)
-                else:
-                    unmuted[speaker.id] = speaker.volume
-                    #TODO raise exception if we didn't process all ids or all names
-        return unmuted
+                unmuted.append(speaker.id)
+        return self.get_speakers(ids=unmuted)
 
-    def mute_all(self):
-        self.get_speakers()
-        self.mute_some(ids=[speaker.id for speaker in self.speakers if speaker.volume])
-        return True
+    def mutes(self, *, ids=[], names=[], include_disconnected=False):
+        return self.mute_some(ids=ids, names=[], include_disconnected=include_disconnected)
 
-    def unmute_all(self, default_volume=1.0):
-        self.get_speakers()
-        self.unmute_some(ids=[speaker.id for speaker in self.speakers if not speaker.volume],
-                         default_volume=default_volume)
-        return True
-        
+    def unmutes(self, *, ids=[], names=[], default_volume=1.0, include_disconnected=False):
+        return self.unmute_some(ids=ids, names=[], default_volume=default_volume,
+                                include_disconnected=include_disconnected)
 
+    def mute_all(self, include_disconnected=False):
+        return self.mute_some(include_disconnected=include_disconnected)
+
+    def unmute_all(self, default_volume=1.0, include_disconnected=False):
+        return self.unmute_some(default_volume=default_volume, include_disconnected=include_disconnected)
+#
+# from airfoil_finder import AirfoilFinder
+# a = AirfoilFinder.get_first_airfoil()
+# a.set_volumes(names=['Bedroom speaker', 'Office speaker'])
 
 # print(a.mute(name='office speaker'))
 # time.sleep(2)

@@ -1,23 +1,14 @@
 from airfoil import Airfoil
-from airfoil_async import AirfoilAsync
 from zeroconf import ServiceBrowser, Zeroconf
 import zeroconf
-import aiozeroconf
-import asyncio
 import time
 
 
 class AirfoilFinder(object):
     domain = "_slipstreamrem._tcp.local."
 
-    def __init__(self, on_add=None, on_remove=None, async=False, async_loop=None):
+    def __init__(self, on_add=None, on_remove=None):
         self.airfoils = {}
-        self.async = async
-        # if async:
-        #     self.async_loop = async_loop if async_loop else asyncio.get_event_loop()
-        #     self.zeroconf = aiozeroconf.Zeroconf(self.async_loop, address_family=[2])
-        #     self.browser = aiozeroconf.ServiceBrowser(self.zeroconf, self.domain, self)
-        # else:
         self.zeroconf = zeroconf.Zeroconf()
         self.browser = zeroconf.ServiceBrowser(self.zeroconf, self.domain, self)
 
@@ -38,7 +29,7 @@ class AirfoilFinder(object):
         ip = '.'.join(str(i) for i in info.address)
         port = info.port
         name = name.split('.')[0].lower()
-        airfoil = Airfoil(ip, port, name) if not self.async else AirfoilAsync(ip, port, name, loop=self.async_loop)
+        airfoil = Airfoil(ip, port, name)
         self.airfoils[name] = airfoil
         print(f"Airfoil instance '{name}' found at {ip}:{port}")
         if self.on_add:
@@ -48,7 +39,7 @@ class AirfoilFinder(object):
         self.zeroconf.close()
 
     @staticmethod
-    def get_first_airfoil(timeout=10, async=False):
+    def get_first_airfoil(timeout=10):
         """
         find and return an instance of Airfoil on the network.
             the first instance that is found will be returned.
@@ -56,7 +47,7 @@ class AirfoilFinder(object):
         :param timeout: None or int number of seconds to wait before timing out
         :return: instance of Airfoil
         """
-        finder = AirfoilFinder(async=async)
+        finder = AirfoilFinder()
         if timeout is not None:
             while not finder.airfoils:
                 timeout -= 0.25
