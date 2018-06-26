@@ -109,7 +109,9 @@ class AirfoilFinder(object):
 
 # a = AirfoilFinder.get_airfoil_by_ip('192.168.0.50')
 # a = AirfoilFinder.get_first_airfoil(async=True)
-# print(a.name)
+# print(a.get_sources())
+# print(a.find_source(keywords='system'))
+# print(a.get_current_source())
 # a.run_in_loop(a.test())
 
 

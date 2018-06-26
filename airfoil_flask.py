@@ -6,9 +6,13 @@ app = Flask(__name__)
 TRUTHIES = ['true', 'yes', 'y', 't', '1', 'on', 'enabled']
 
 
-def _error(name, reason):
+def _error(name, caller, reason):
     url = request.url.replace(request.url_root[:-1], '')
-    return {'error': 404, 'url': url, 'name': name, 'reason': reason}
+    return {'status': 'fail', 'action': caller, 'url': url, 'name': name, 'reason': reason}
+
+def _success(name, caller):
+    url = request.url.replace(request.url_root[:-1], '')
+    return {'status': 'success', 'action': caller, 'url': url, 'name': name}
 
 
 @app.route('/')
@@ -20,12 +24,13 @@ def get_airfoils():
 
 
 def _airfoil_cmd(name, fn):
+    caller = sys._getframe(1).f_code.co_name
     name = name.lower()
     airfoil = finder.airfoils.get(name, None)
     if airfoil:
         return fn(airfoil)
     else:
-        return _error(name, f'No airfoil instance found with name \'{name}\'')
+        return _error(name, caller, f'No airfoil instance found with name \'{name}\'')
 
 
 def _get_ids_names():
@@ -47,46 +52,49 @@ def _parse_speaker_cmd(name, speaker, functions, ids, names):
 
 
 def _speaker_cmd(name, speaker, cmd):
+    caller = sys._getframe(1).f_code.co_name
     airfoil = finder.airfoils.get(name, None)
     match = None
     if airfoil:
         try:
-            match = airfoil.find_speaker(name=speaker.lower().replace('_', ' '))
+            match = airfoil.find_speaker(id=speaker)
         except ValueError:
-            keywords = airfoil.get_keywords(speaker)
             try:
-                match = airfoil.find_speaker(keywords=keywords)
+                match = airfoil.find_speaker(name=speaker)
             except ValueError:
+                keywords = airfoil.get_keywords(speaker)
                 try:
-                    match = airfoil.find_speaker(id=speaker)
+                    match = airfoil.find_speaker(keywords=keywords)
                 except ValueError:
                     pass
         if match:
             return cmd(airfoil, match)
         else:
-            return _error(name, f'No speaker found with name, id, or keywords: \'{speaker}\'')
+            return _error(name, caller, f'No speaker found with name, id, or keywords: \'{speaker}\'')
     else:
-        return _error(name, f'No airfoil instance found with name \'{name}\'')
+        return _error(name, caller, f'No airfoil instance found with name \'{name}\'')
 
 
 def _media_button(name, cmd):
+    caller = sys._getframe(1).f_code.co_name
     cmds = {
         'play': lambda airfoil: airfoil.play_pause(),
         'next': lambda airfoil: airfoil.next_track(),
         'back': lambda airfoil: airfoil.last_track()
     }
-    result = _airfoil_cmd(name, cmds[cmd])
-    if result:
-        return jsonify({'result': 'success'})
+    source = _airfoil_cmd(name, lambda airfoil: airfoil.get_current_source())
+    print(source)
+    print(source.source_controllable)
+    if not source.source_controllable:
+        response = _error(name, caller, 'current source does not support remote control by Airfoil')
     else:
-        source = _airfoil_cmd(name, lambda airfoil: airfoil.get_current_source())
-        url = request.url.replace(request.url_root[:-1], '')
-        fail = {'result': 'failed', 'url': url, 'name': name, 'reason': None}
-        if not source.source_controllable:
-            fail['reason'] = f'\'{source.source_name}\' cannot be remotely controlled by Airfoil'
+        result = _airfoil_cmd(name, cmds[cmd])
+        if result:
+            response = _success(name, caller)
         else:
-            fail['reason'] = 'unknown'
-        return jsonify(fail)
+            response = _error(name, caller, 'unknown')
+    response['current_source'] = source._asdict()
+    return jsonify(response)
 
 
 @app.route('/<name>/')
@@ -144,7 +152,7 @@ def get_sources(name):
 def get_current_source(name):
     source_name = request.args.get('name','')
     source_id = request.args.get('id','')
-    keywords = [kw for kw in request.args.get('keywords').split(',') if kw]
+    keywords = [kw for kw in request.args.get('keywords', '').split(',') if kw]
     if source_name or source_id or keywords:
         return set_source(source_name=source_name, source_id=source_id, keywords=keywords)
 
@@ -157,6 +165,7 @@ def get_current_source(name):
         machine_icon=machine_icon, album_art=album_art, source_icon=source_icon, track_meta=track_meta))
     return jsonify(source._asdict())
 
+
 @app.route('/<name>/source/<source>/')
 @app.route('/<name>/source/<source>')
 def set_source(name, source='', source_name='', source_id='', keywords=[]):
@@ -166,12 +175,40 @@ def set_source(name, source='', source_name='', source_id='', keywords=[]):
     airfoil = finder.airfoils.get(name, None)
     match = None
     if airfoil:
-        pass
+        try:
+            if source_name or source_id or keywords:
+                match = airfoil.find_source(name=source_name, id=source_id, keywords=keywords)
+        except ValueError:
+            return jsonify(_error(name, 'no source was found with the specified url keyword parameter'))
+        if source:
+            try:
+                match = airfoil.find_source(name=source)
+            except ValueError:
+                try:
+                    match = airfoil.find_source(id=source)
+                except ValueError:
+                    keywords = airfoil.get_keywords(source)
+                    try:
+                        match = airfoil.find_source(keywords=keywords)
+                    except ValueError:
+                        pass
+        response = {'action': 'set_source', 'status': 'success', 'current_source': None}
+        if match:
+            source = airfoil.set_source(id=match.id)._asdict()
+            if source['source_name'] != match.name:
+                response['status'] = 'fail'
+                response['reason'] = 'source was not successfully changed. check Airfoil.'
+        else:
+            source = airfoil.get_current_source()._asdict()
+            response['status'] = 'fail'
+            response['reason'] = 'no source was found with the given name.'
+        response['current_source'] = source
+        return jsonify(response)
+
+
+
     else:
         return _error(name, f'No airfoil instance found with name \'{name}\'')
-
-
-
 
 
 @app.route('/<name>/speakers/')
@@ -182,6 +219,7 @@ def get_speakers(name):
     for s in speakers:
         speaker_list.append(s._asdict())
     return jsonify(speaker_list)
+
 
 @app.route('/<name>/<speaker>/')
 @app.route('/<name>/<speaker>')
@@ -213,6 +251,25 @@ def connect(name, speaker):
 @app.route('/<name>/<speaker>/disable')
 def disconnect(name, speaker):
     return jsonify(_speaker_cmd(name, speaker, lambda airfoil, match: airfoil.disconnect_speaker(id=match.id)))
+
+
+@app.route('/<name>/<speaker>/toggle/')
+@app.route('/<name>/<speaker>/toggle')
+def toggle(name, speaker):
+    ids, names = _get_ids_names()
+    disconnected = request.args.get('disconnected', 'false').lower() in TRUTHIES
+
+    functions = {'names':
+         lambda airfoil: airfoil.mute_some(names=names, include_disconnected=disconnected),
+                 'ids':
+         lambda airfoil: airfoil.mute_some(ids=ids, include_disconnected=disconnected),
+                 'all':
+         lambda airfoil: airfoil.mute_all(include_disconnected=disconnected),
+                 'specific':
+         lambda airfoil, match: airfoil.toggle_speaker(id=match.id)
+                 }
+    return _parse_speaker_cmd(name, speaker, functions, ids, names)
+
 
 
 @app.route('/<name>/<speaker>/mute/')

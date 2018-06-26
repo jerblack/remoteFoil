@@ -97,6 +97,39 @@ class Airfoil(object):
                 raise ValueError(f'no speakers were found with the specified keywords:\n\t\t\t{keywords}')
         return selected_speaker
 
+    def find_source(self, id=None, name=None, keywords=[]):
+        caller = sys._getframe(1).f_code.co_name
+        sources = self.get_sources()
+        selected_source = None
+        if not name and not id and not keywords:
+            raise ValueError(f'{caller} called with no parameters.'
+                             '\n\t\t\tmust pass one of the following: id, name, or keywords')
+        elif [bool(name), bool(id), bool(keywords)].count(True) > 1:
+            raise ValueError(f'only one keyword parameter can be passed to {caller}.'
+                             '\n\t\t\tmust pass only one: id, name, or keywords')
+        elif id:
+            for source in sources:
+                if source.id.lower() == id.lower():
+                    selected_source = source
+            if not selected_source:
+                raise ValueError(f'no sources were found with the specified id:\n\t\t\t{id}')
+        elif name:
+            for source in sources:
+                if source.name.lower() == name.lower():
+                    selected_source = source
+            if not selected_source:
+                raise ValueError(f'no sources were found with the specified name:\n\t\t\t{name}')
+        elif keywords:
+            if type(keywords) is not list:
+                keywords = [keywords]
+                # raise ValueError('keywords parameter must be a list')
+            for source in sources:
+                if all(kw.lower() in source.keywords for kw in keywords):
+                    selected_source = source
+            if not selected_source:
+                raise ValueError(f'no sources were found with the specified keywords:\n\t\t\t{keywords}')
+        return selected_source
+
     def watch(self):
         base_cmd = {"request": "subscribe", "requestID": "-1", "data": {
             "notifications": ["sourceMetadataChanged", "remoteControlChangedRequest", "speakerConnectedChanged",
@@ -179,7 +212,19 @@ class Airfoil(object):
         else:
             return result
 
-    def toggle_speakers(self):
+    def toggle_speakers(self, *, ids=[], names=[]):
+        self.get_speakers()
+        to_change = []
+        for speaker in self.speakers:
+            if (ids and speaker.id in ids) or (names and speaker.name in names) or (not ids and not names):
+                cmd = copy.deepcopy(base_cmd)
+                cmd['data']['longIdentifier'] = speaker.id
+                to_change.append(speaker.id)
+                self._get_result(cmd)
+        return self.get_speakers(ids=to_change)
+
+
+    def toggle_all(self):
         """Disconnect and reconnect all currently connected speakers.
         Solves problems when Airfoil gets in a bad state"""
         all_speakers = self.get_speakers()
@@ -284,9 +329,10 @@ class Airfoil(object):
         request_id, cmd = self._create_cmd(base_cmd)
         for response in self._get_responses(cmd):
             if response.get('replyID', None) == request_id:
-                try:
-                    return response['data']['success']
-                except KeyError as e:
+                return self.get_current_source()
+                # try:
+                #     return response['data']['success']
+                # except KeyError as e:
                     # switching from playing source (tested system audio and spotify) to microphone always
                     # generates error 500 from airfoil
                     # {'replyID': '209', 'errorCode': 500, 'errExplanation':
@@ -294,8 +340,8 @@ class Airfoil(object):
                     # After getting this response, audio will not work after switching back to spotify
                     # until you disconnect/reconnect speakers. same behavior from airfoil satellite
                     # creating toggle speakers helper to do this automatically
-                    print(response)
-                    return False
+                    # print(response)
+                    # return False
 
     def get_current_source(self, machine_icon=False, album_art=False, source_icon=False, track_meta=False):
         base_cmd = {"data": {"scaleFactor": 2, "requestedData":
