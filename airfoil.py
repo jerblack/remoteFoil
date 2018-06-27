@@ -187,8 +187,27 @@ class Airfoil(object):
         base_cmd['data']['longIdentifier'] = selected_speaker.id
         if selected_speaker.connected:
             print(f'speaker \'{selected_speaker.name}\' is already connected')
-            return True
-        return self._get_result(base_cmd)
+        else:
+            self._get_result(base_cmd)
+        return self.get_speakers(ids=[selected_speaker.id])
+
+    def connect_speakers(self, *, ids=[], names=[]):
+        self.get_speakers()
+        to_change = []
+        for speaker in self.speakers:
+            if (ids and speaker.id.lower() in [id.lower() for id in ids]) or \
+                    (names and speaker.name.lower() in [name.lower() for name in names]) or \
+                    (not ids and not names):
+                to_change.append(speaker.id)
+        for id in to_change:
+            self.connect_speaker(id=id)
+        return self.get_speakers(ids=to_change)
+
+    def connect_some(self, *, ids=[], names=[]):
+        return self.connect_speakers(ids=ids, names=names)
+
+    def connect_all(self):
+        return self.connect_speakers()
 
     def disconnect_speaker(self, *, id=None, name=None, keywords=[]):
         base_cmd = {"request": "disconnectSpeaker", "requestID": "-1",
@@ -197,8 +216,28 @@ class Airfoil(object):
         base_cmd['data']['longIdentifier'] = selected_speaker.id
         if not selected_speaker.connected:
             print(f'speaker \'{selected_speaker.name}\' is already disconnected')
-            return True
-        return self._get_result(base_cmd)
+        else:
+            self._get_result(base_cmd)
+        return self.get_speakers(ids=[selected_speaker.id])
+
+    def disconnect_speakers(self, *, ids=[], names=[]):
+        self.get_speakers()
+        to_change = []
+        for speaker in self.speakers:
+            if (ids and speaker.id.lower() in [id.lower() for id in ids]) or \
+                    (names and speaker.name.lower() in [name.lower() for name in names]) or \
+                    (not ids and not names):
+                to_change.append(speaker.id)
+        for id in to_change:
+            self.disconnect_speaker(id=id)
+        return self.get_speakers(ids=to_change)
+
+    def disconnect_some(self, *, ids=[], names=[]):
+        return self.disconnect_speakers(ids=ids, names=names)
+
+    def disconnect_all(self):
+        return self.disconnect_speakers()
+
 
     def toggle_speaker(self, *, id=None, name=None, keywords=[]):
         """Disconnect (if connected) and reconnect specified speaker.
@@ -212,30 +251,31 @@ class Airfoil(object):
         else:
             return result
 
-    def toggle_speakers(self, *, ids=[], names=[]):
+    def toggle_speakers(self, *, ids=[], names=[], include_disconnected=False):
+        """Disconnect and reconnect selected speakers.
+        Solves problems when Airfoil gets in a bad state"""
         self.get_speakers()
         to_change = []
         for speaker in self.speakers:
-            if (ids and speaker.id in ids) or (names and speaker.name in names) or (not ids and not names):
-                cmd = copy.deepcopy(base_cmd)
-                cmd['data']['longIdentifier'] = speaker.id
+            if (ids and speaker.id.lower() in [id.lower() for id in ids]) or\
+                (names and speaker.name.lower() in [name.lower() for name in names]) or\
+                    (not ids and not names) and\
+                    (include_disconnected or speaker.connected):
                 to_change.append(speaker.id)
-                self._get_result(cmd)
+        for id in to_change:
+            self.disconnect_speaker(id=id)
+        for id in to_change:
+            self.connect_speaker(id=id)
         return self.get_speakers(ids=to_change)
 
+    def toggle_some(self, *, ids=[], names=[], include_disconnected=False):
+        """alternate name for toggle_speakers"""
+        return self.toggle_speakers(ids=ids, names=names, include_disconnected=include_disconnected)
 
-    def toggle_all(self):
+    def toggle_all(self, include_disconnected=False):
         """Disconnect and reconnect all currently connected speakers.
         Solves problems when Airfoil gets in a bad state"""
-        all_speakers = self.get_speakers()
-        connected = []
-        for speaker in all_speakers:
-            if speaker.connected:
-                connected.append(speaker)
-        for speaker in connected:
-            self.disconnect_speaker(id=speaker.id)
-        for speaker in connected:
-            self.connect_speaker(id=speaker.id)
+        return self.toggle_speakers(include_disconnected=include_disconnected)
 
     def get_sources(self, source_icon=False):
         base_cmd = {"request": "getSourceList", "requestID": "-1",
@@ -380,7 +420,7 @@ class Airfoil(object):
                 self.current_source = result
                 return result
 
-    def set_volume(self, volume, *, id=None, name=None, keywords=[], include_disconnected=False):
+    def set_volume(self, volume, *, id=None, name=None, keywords=[]):
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": None}}
         if type(volume) in [float, int]:
             if volume > 1 or volume < 0:
@@ -390,11 +430,12 @@ class Airfoil(object):
             raise ValueError(f'volume must be a \'float\', not \'{type(volume)}\'')
         selected_speaker = self.find_speaker(id, name, keywords)
         base_cmd['data']['longIdentifier'] = selected_speaker.id
-        if include_disconnected or (not include_disconnected and not selected_speaker.connected):
-            self._get_result(base_cmd)
+        self._get_result(base_cmd)
         return self.get_speakers(ids=[selected_speaker.id])
 
     def set_volumes(self, volume, *, ids=[], names=[], include_disconnected=False):
+        ids = [i.lower() for i in ids]
+        names = [n.lower() for n in names]
         if type(volume) in [float, int]:
             if volume > 1 or volume < 0:
                 raise ValueError('volume must a float or int from 0.0 to 1.0')
@@ -409,7 +450,9 @@ class Airfoil(object):
                 {"longIdentifier": None, "volume": volume}}
 
             for speaker in self.speakers:
-                if (ids and speaker.id in ids) or (names and speaker.name in names) or (not ids and not names):
+                if (ids and speaker.id.lower() in ids) or\
+                        (names and speaker.name.lower() in names) or\
+                        (not ids and not names and (speaker.connected or include_disconnected)):
                     cmd = copy.deepcopy(base_cmd)
                     cmd['data']['longIdentifier'] = speaker.id
                     to_change.append(speaker.id)
@@ -419,10 +462,10 @@ class Airfoil(object):
             raise ValueError(f'volume must be a \'float\', not \'{type(volume)}\'')
 
     def set_volume_some(self, volume, *, ids=[], names=[], include_disconnected=False):
-        return self.set_volumes(volume, ids, names)
+        return self.set_volumes(volume, ids, names, include_disconnected=include_disconnected)
 
     def set_volume_all(self, volume, include_disconnected=False):
-        return self.set_volumes(volume)
+        return self.set_volumes(volume, include_disconnected=include_disconnected)
 
     def fade_volume(self, end_volume, seconds, *, ticks=10, id=None, name=None, keywords=[]):
         """
@@ -494,10 +537,12 @@ class Airfoil(object):
         self.get_speakers()
         speakers = []
         wait = round(seconds / ticks, 4)
+        ids = [i.lower() for i in ids]
+        names = [n.lower() for n in names]
 
         for speaker in self.speakers:
-            if (ids and speaker.id in ids) \
-                    or (names and speaker.name in names)\
+            if (ids and speaker.id.lower() in ids) \
+                    or (names and speaker.name.lower() in names)\
                     or (not ids and not names and (speaker.connected or include_disconnected)):
                 cmd = copy.deepcopy(base_cmd)
                 cmd['data']['longIdentifier'] = speaker.id
@@ -557,12 +602,14 @@ class Airfoil(object):
         if type(names) is not list:
             raise ValueError(f'names must be a list of speaker names, not \'{type(names)}\'')
         self.get_speakers()
+        ids = [i.lower() for i in ids]
+        names = [n.lower() for n in names]
 
         muted = []
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
         for speaker in self.speakers:
-            if (ids and speaker.id in ids) \
-                    or (names and speaker.name in names) \
+            if (ids and speaker.id.lower() in ids) \
+                    or (names and speaker.name.lower() in names) \
                     or (not ids and not names and (speaker.connected or include_disconnected)):
                 if speaker.volume:
                     cmd = copy.deepcopy(base_cmd)
@@ -577,15 +624,14 @@ class Airfoil(object):
             raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
         if type(names) is not list:
             raise ValueError(f'names must be a list of speaker names, not \'{type(names)}\'')
-        if (not ids and not names) or (ids and names):
-            raise ValueError('unmute_some must be called with either a list of speaker ids or a list of speaker names'
-                             '\n\t\t\tprovide one or the other, but not both.')
         self.get_speakers()
+        ids = [i.lower() for i in ids]
+        names = [n.lower() for n in names]
         unmuted = []
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
         for speaker in self.speakers:
-            if (ids and speaker.id in ids) \
-                    or (names and speaker.name in names) \
+            if (ids and speaker.id.lower() in ids) \
+                    or (names and speaker.name.lower() in names) \
                     or (not ids and not names and (speaker.connected or include_disconnected)):
                 if not speaker.volume:
                     cmd = copy.deepcopy(base_cmd)

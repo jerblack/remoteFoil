@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, g
 from airfoil_finder import AirfoilFinder
 import sys
 finder = None
@@ -22,55 +22,69 @@ def get_airfoils():
         airfoils.append({'name': af.name, 'ip': af.ip})
     return jsonify({'airfoils': airfoils})
 
+@app.before_request
+def _get_args():
+    g.disconnected = False
+    g.names = []
+    g.ids = []
+    g.volume = -1
+    g.seconds = 3
+    g.ticks = 10
+    g.action = None
+    for k, v in request.args.items():
+        newk = k.lower()
+        newv = v.lower()
+        if newk == 'ids':
+            g.ids = [i for i in newv.split(',') if i]
+        if newk == 'names':
+            g.names = [n for n in newv.split(',') if n]
+        if newk in ['disconnected', 'all']:
+            g.disconnected = newv in TRUTHIES
+        if newk in ['end_volume', 'level', 'volume']:
+            g.volume = newv
+        if newk == 'seconds':
+            g.seconds = newv
+        if newk == 'ticks':
+            g.ticks = newv
+        if newk == 'action':
+            g.action = newv
 
-def _airfoil_cmd(name, fn):
+
+def _parse_speaker_cmd(name, speaker, functions):
+    if speaker == 'speakers':
+        speakers = [c._asdict() for c in _airfoil_cmd(name, functions['multi'])]
+    else:
+        speakers = [c._asdict() for c in _airfoil_cmd(name, functions['specific'], speaker=speaker)]
+    caller = sys._getframe(1).f_code.co_name
+    result = _success(name, caller)
+    result['speakers'] = speakers
+    return jsonify(result)
+
+
+def _airfoil_cmd(name, cmd, speaker=None):
     caller = sys._getframe(1).f_code.co_name
     name = name.lower()
     airfoil = finder.airfoils.get(name, None)
     if airfoil:
-        return fn(airfoil)
-    else:
-        return _error(name, caller, f'No airfoil instance found with name \'{name}\'')
-
-
-def _get_ids_names():
-    ids = [i for i in request.args.get('ids', '').split(',') if i]
-    names = [n for n in request.args.get('names', '').split(',') if n]
-    return ids, names
-
-
-def _parse_speaker_cmd(name, speaker, functions, ids, names):
-    if speaker == 'speakers':
-        if names:
-            return jsonify([c._asdict() for c in _airfoil_cmd(name, functions['names'])])
-        elif ids:
-            return jsonify([c._asdict() for c in _airfoil_cmd(name, functions['ids'])])
+        if not speaker:
+            return cmd(airfoil)
         else:
-            return jsonify([c._asdict() for c in _airfoil_cmd(name, functions['all'])])
-    else:
-        return jsonify([c._asdict() for c in _speaker_cmd(name, speaker, functions['specific'])])
-
-
-def _speaker_cmd(name, speaker, cmd):
-    caller = sys._getframe(1).f_code.co_name
-    airfoil = finder.airfoils.get(name, None)
-    match = None
-    if airfoil:
-        try:
-            match = airfoil.find_speaker(id=speaker)
-        except ValueError:
+            match = None
             try:
-                match = airfoil.find_speaker(name=speaker)
+                match = airfoil.find_speaker(id=speaker)
             except ValueError:
-                keywords = airfoil.get_keywords(speaker)
                 try:
-                    match = airfoil.find_speaker(keywords=keywords)
+                    match = airfoil.find_speaker(name=speaker)
                 except ValueError:
-                    pass
-        if match:
-            return cmd(airfoil, match)
-        else:
-            return _error(name, caller, f'No speaker found with name, id, or keywords: \'{speaker}\'')
+                    keywords = airfoil.get_keywords(speaker)
+                    try:
+                        match = airfoil.find_speaker(keywords=keywords)
+                    except ValueError:
+                        pass
+            if match:
+                return cmd(airfoil, match)
+            else:
+                return _error(name, caller, f'No speaker found with name, id, or keywords: \'{speaker}\'')
     else:
         return _error(name, caller, f'No airfoil instance found with name \'{name}\'')
 
@@ -83,14 +97,13 @@ def _media_button(name, cmd):
         'back': lambda airfoil: airfoil.last_track()
     }
     source = _airfoil_cmd(name, lambda airfoil: airfoil.get_current_source())
-    print(source)
-    print(source.source_controllable)
     if not source.source_controllable:
         response = _error(name, caller, 'current source does not support remote control by Airfoil')
     else:
         result = _airfoil_cmd(name, cmds[cmd])
         if result:
             response = _success(name, caller)
+            source = _airfoil_cmd(name, lambda airfoil: airfoil.get_current_source())
         else:
             response = _error(name, caller, 'unknown')
     response['current_source'] = source._asdict()
@@ -211,168 +224,147 @@ def set_source(name, source='', source_name='', source_id='', keywords=[]):
         return _error(name, f'No airfoil instance found with name \'{name}\'')
 
 
-@app.route('/<name>/speakers/')
-@app.route('/<name>/speakers')
-def get_speakers(name):
-    speakers = _airfoil_cmd(name, lambda airfoil: airfoil.get_speakers())
-    speaker_list = []
-    for s in speakers:
-        speaker_list.append(s._asdict())
-    return jsonify(speaker_list)
-
-
 @app.route('/<name>/<speaker>/')
 @app.route('/<name>/<speaker>')
+@app.route('/<name>/<speaker>/<action>/')
+@app.route('/<name>/<speaker>/<action>')
+@app.route('/<name>/<speaker>/<action>/<arg1>/')
+@app.route('/<name>/<speaker>/<action>/<arg1>')
+@app.route('/<name>/<speaker>/<action>/<arg1>/<arg2>/')
+@app.route('/<name>/<speaker>/<action>/<arg1>/<arg2>')
+@app.route('/<name>/<speaker>/<action>/<arg1>/<arg2>/<arg3>/')
+@app.route('/<name>/<speaker>/<action>/<arg1>/<arg2>/<arg3>')
+def speaker_uri(name, speaker, action=None, arg1=None, arg2=None, arg3=None):
+    g.action = action = action.lower() if action else g.action
+    level_error = f'{g.action} requires an end volume between 0 and 1 with up to 8 digits after the decimal point. for'\
+                  f' example:  /{name}/{speaker}/fade/0.7  -or-  /{name}/{speaker}/fade/0.35/10/100  -or-  /{name}/'\
+                  f'{speaker}/{g.action}?volume=0.654444&seconds=15&ticks=500'
+    if not any([action, arg1, arg2, arg3]):
+        if speaker == 'speakers':
+            return get_speakers(name)
+        else:
+            return get_speaker(name, speaker)
+    if action in ['on', 'yes', 'true', 'connect', 'enable']:
+        return connect(name, speaker)
+    if action in ['off', 'no', 'false', 'disconnect', 'disable']:
+        return disconnect(name, speaker)
+    if action in ['toggle', 'reset', 'cycle']:
+        return toggle(name, speaker)
+    if action in ['mute', 'silence', 'silent', 'quiet']:
+        return mute(name, speaker)
+
+    def check_volume():
+        try:
+            g.volume = float(arg1 if arg1 else g.volume)
+        except ValueError:
+            return False
+        if g.volume < 0 or g.volume > 1:
+            return False
+        return True
+
+    if action == 'unmute':
+        if not check_volume() and arg1 is not None:
+            return jsonify(_error(name, action, level_error))
+        return unmute(name, speaker)
+    if action in ['fade', 'ramp', 'transition']:
+        if not check_volume():
+            return jsonify(_error(name, action, level_error))
+        g.seconds = arg2 if arg2 else g.seconds
+        g.ticks = arg3 if arg3 else g.ticks
+        return fade(name, speaker)
+    if action in ['volume', 'level']:
+        if not check_volume():
+            return jsonify(_error(name, action, level_error))
+        return volume(name, speaker)
+    try:
+        g.volume = float(action)
+        if 1 >= g.volume >= 0:
+            return volume(name, speaker)
+    except ValueError:
+        pass
+    return jsonify(_error(name, g.action, f'action for speaker is not recognized: \'{action}\''))
+
+
+def get_speakers(name):
+    speakers = _airfoil_cmd(name, lambda airfoil: airfoil.get_speakers())
+    return jsonify([s._asdict() for s in speakers])
+
+
 def get_speaker(name, speaker):
-    return jsonify(_speaker_cmd(name, speaker, lambda _, match: match._asdict()))
+    return jsonify(_airfoil_cmd(name, lambda _, match: match._asdict(), speaker=speaker))
 
-@app.route('/<name>/<speaker>/on/')
-@app.route('/<name>/<speaker>/on')
-@app.route('/<name>/<speaker>/yes/')
-@app.route('/<name>/<speaker>/yes')
-@app.route('/<name>/<speaker>/true/')
-@app.route('/<name>/<speaker>/true')
-@app.route('/<name>/<speaker>/connect/')
-@app.route('/<name>/<speaker>/connect')
-@app.route('/<name>/<speaker>/enable/')
-@app.route('/<name>/<speaker>/enable')
+
 def connect(name, speaker):
-    return jsonify(_speaker_cmd(name, speaker, lambda airfoil, match: airfoil.connect_speaker(id=match.id)))
+    functions = {'multi':
+         lambda airfoil: airfoil.connect_some(names=g.names, ids=g.ids),
+                 'specific':
+         lambda airfoil, match: airfoil.disconnect_speaker(id=match.id)
+                 }
+    return _parse_speaker_cmd(name, speaker, functions)
 
-@app.route('/<name>/<speaker>/off/')
-@app.route('/<name>/<speaker>/off')
-@app.route('/<name>/<speaker>/no/')
-@app.route('/<name>/<speaker>/no')
-@app.route('/<name>/<speaker>/false/')
-@app.route('/<name>/<speaker>/false')
-@app.route('/<name>/<speaker>/disconnect/')
-@app.route('/<name>/<speaker>/disconnect')
-@app.route('/<name>/<speaker>/disable/')
-@app.route('/<name>/<speaker>/disable')
+
 def disconnect(name, speaker):
-    return jsonify(_speaker_cmd(name, speaker, lambda airfoil, match: airfoil.disconnect_speaker(id=match.id)))
+    functions = {'multi':
+         lambda airfoil: airfoil.disconnect_some(names=g.names, ids=g.ids),
+                 'specific':
+         lambda airfoil, match: airfoil.disconnect_speaker(id=match.id)
+                 }
+    return _parse_speaker_cmd(name, speaker, functions)
 
 
-@app.route('/<name>/<speaker>/toggle/')
-@app.route('/<name>/<speaker>/toggle')
 def toggle(name, speaker):
-    ids, names = _get_ids_names()
-    disconnected = request.args.get('disconnected', 'false').lower() in TRUTHIES
-
-    functions = {'names':
-         lambda airfoil: airfoil.mute_some(names=names, include_disconnected=disconnected),
-                 'ids':
-         lambda airfoil: airfoil.mute_some(ids=ids, include_disconnected=disconnected),
-                 'all':
-         lambda airfoil: airfoil.mute_all(include_disconnected=disconnected),
+    functions = {'multi':
+         lambda airfoil: airfoil.toggle_some(names=g.names, ids=g.ids, include_disconnected=g.disconnected),
                  'specific':
          lambda airfoil, match: airfoil.toggle_speaker(id=match.id)
                  }
-    return _parse_speaker_cmd(name, speaker, functions, ids, names)
+    return _parse_speaker_cmd(name, speaker, functions)
 
 
-
-@app.route('/<name>/<speaker>/mute/')
-@app.route('/<name>/<speaker>/mute')
 def mute(name, speaker):
-    ids, names = _get_ids_names()
-    disconnected = request.args.get('disconnected', 'false').lower() in TRUTHIES
-
-    functions = {'names':
-         lambda airfoil: airfoil.mute_some(names=names, include_disconnected=disconnected),
-                 'ids':
-         lambda airfoil: airfoil.mute_some(ids=ids, include_disconnected=disconnected),
-                 'all':
-         lambda airfoil: airfoil.mute_all(include_disconnected=disconnected),
+    functions = {'multi':
+         lambda airfoil: airfoil.mute_some(names=g.names, ids=g.ids, include_disconnected=g.disconnected),
                  'specific':
          lambda airfoil, match: airfoil.mute(id=match.id)
                  }
-    return _parse_speaker_cmd(name, speaker, functions, ids, names)
+    return _parse_speaker_cmd(name, speaker, functions)
 
 
-@app.route('/<name>/<speaker>/unmute/')
-@app.route('/<name>/<speaker>/unmute')
-@app.route('/<name>/<speaker>/unmute/<default_volume>/')
-@app.route('/<name>/<speaker>/unmute/<default_volume>')
-def unmute(name, speaker, default_volume=None):
-    disconnected = request.args.get('disconnected', 'false').lower() in TRUTHIES
-    default_volume = float(request.args.get('default_volume', 1.0) if not default_volume else default_volume)
-    if default_volume < 0 or default_volume > 1:
-        return jsonify(_error(name, 'the end_volume parameter for unmute must be between 0 and 1 with up to 6 digits '
-                                    f'after the decimal point. for example:  /{name}/{speaker}/unmute/1.0  -or-  '
-                                    f' /{name}/{speaker}/unmute?default_volume=0.654321'))
-    ids, names = _get_ids_names()
-    functions = {'names':
-         lambda airfoil: airfoil.unmute_some(names=names, default_volume=default_volume,
-                                             include_disconnected=disconnected),
-                 'ids':
-         lambda airfoil: airfoil.unmute_some(ids=ids, default_volume=default_volume,
-                                             include_disconnected=disconnected),
-                 'all':
-         lambda airfoil: airfoil.unmute_all(default_volume=default_volume,
-                                            include_disconnected=disconnected),
+def unmute(name, speaker):
+    functions = {'multi':
+         lambda airfoil: airfoil.unmute_some(names=g.names, ids=g.ids, default_volume=g.volume,
+                                             include_disconnected=g.disconnected),
                  'specific':
-         lambda airfoil, match: airfoil.unmute(id=match.id, default_volume=default_volume,
-                                               include_disconnected=disconnected)
+         lambda airfoil, match: airfoil.unmute(id=match.id, default_volume=g.volume)
                  }
-    return _parse_speaker_cmd(name, speaker, functions, ids, names)
+    return _parse_speaker_cmd(name, speaker, functions)
 
 
-@app.route('/<name>/<speaker>/fade/')
-@app.route('/<name>/<speaker>/fade')
-@app.route('/<name>/<speaker>/fade/<end_volume>/')
-@app.route('/<name>/<speaker>/fade/<end_volume>')
-@app.route('/<name>/<speaker>/fade/<end_volume>/<seconds>/')
-@app.route('/<name>/<speaker>/fade/<end_volume>/<seconds>')
-@app.route('/<name>/<speaker>/fade/<end_volume>/<seconds>/<ticks>/')
-@app.route('/<name>/<speaker>/fade/<end_volume>/<seconds>/<ticks>')
-def fade(name, speaker, end_volume=None, seconds=None, ticks=None):
-    end_volume = float(request.args.get('end_volume', -1) if not end_volume else end_volume)
-    seconds = float(request.args.get('seconds', 5) if not seconds else seconds)
-    disconnected = request.args.get('disconnected', 'false').lower() in TRUTHIES
-    if end_volume < 0 or end_volume > 1:
-        return jsonify(_error(name, 'fade requires an end volume between 0 and 1 with up to 6 digits after the decimal point. '
-                            f'for example:  /{name}/{speaker}/fade/0.7  -or-  /{name}/{speaker}/fade/0.35/10/100  -or- '
-                            f' /{name}/{speaker}/fade?end_volume=0.654444&seconds=15&ticks=500'))
-    if ticks and not ticks.isdigit():
-        return jsonify(_error(name, 'the number given for ticks must be an integer greater than 0.'))
-    ticks = int(request.args.get('ticks', 10) if not ticks else ticks)
-    ids, names = _get_ids_names()
-    functions = {'names':
-        lambda airfoil: airfoil.fade_some(names=names, end_volume=end_volume, seconds=seconds, ticks=ticks,
-                                          include_disconnected=disconnected),
-                 'ids':
-        lambda airfoil: airfoil.fade_some(ids=ids, end_volume=end_volume, seconds=seconds, ticks=ticks,
-                                          include_disconnected=disconnected),
-                 'all':
-        lambda airfoil: airfoil.fade_all(end_volume=end_volume, seconds=seconds, ticks=ticks,
-                                         include_disconnected=disconnected),
+def fade(name, speaker):
+    try:
+        seconds = abs(float(g.seconds))
+    except ValueError:
+        return jsonify(_error(name, g.action, f'seconds must be a positive numeric value like 5, 3.25, 15.021, not '
+                                              f'\'{seconds}\''))
+    if g.ticks and not g.ticks.isdigit():
+        return jsonify(_error(name, g.action, f'the number given for ticks must be an integer greater than 0, not:'
+                                              f' \'{g.ticks}\''))
+    g.ticks = int(g.ticks)
+    functions = {'multi':
+        lambda airfoil: airfoil.fade_some(names=g.names, ids=g.ids, end_volume=g.volume, seconds=g.seconds,
+                                          ticks=g.ticks, include_disconnected=g.disconnected),
                  'specific':
-        lambda airfoil, match: airfoil.fade_volume(id=match.id, end_volume=end_volume, seconds=seconds, ticks=ticks)}
-    return _parse_speaker_cmd(name, speaker, functions, ids, names)
+        lambda airfoil, match: airfoil.fade_volume(id=match.id, volume=g.volume, seconds=g.seconds, ticks=g.ticks)}
+    return _parse_speaker_cmd(name, speaker, functions)
 
-@app.route('/<name>/<speaker>/volume/')
-@app.route('/<name>/<speaker>/volume')
-@app.route('/<name>/<speaker>/volume/<level>/')
-@app.route('/<name>/<speaker>/volume/<level>')
-def volume(name, speaker, level=None):
-    disconnected = request.args.get('disconnected', 'false').lower() in TRUTHIES
-    level = float(request.args.get('level', -1) if level is None else level)
-    if level < 0 or level > 1:
-        return jsonify(_error(name, 'volume requires a level value between 0 and 1 with up to 6 digits after the'
-                                    f' decimal point. for example:  /{name}/{speaker}/volume/0.7  -or  /{name}/'
-                                    f'{speaker}/volume?level=0.354242'))
-    ids, names = _get_ids_names()
-    functions = {'names':
-         lambda airfoil: airfoil.set_volumes(level, names=names, include_disconnected=disconnected),
-                 'ids':
-         lambda airfoil: airfoil.set_volumes(level, ids=ids, include_disconnected=disconnected),
-                 'all':
-         lambda airfoil: airfoil.set_volume_all(level, include_disconnected=disconnected),
+
+def volume(name, speaker):
+    functions = {'multi':
+         lambda airfoil: airfoil.set_volumes(g.volume, names=g.names, ids=g.ids, include_disconnected=g.disconnected),
                  'specific':
-         lambda airfoil, match: airfoil.set_volume(level, id=match.id, include_disconnected=disconnected)
+         lambda airfoil, match: airfoil.set_volume(g.volume, id=match.id)
                  }
-    return _parse_speaker_cmd(name, speaker, functions, ids, names)
+    return _parse_speaker_cmd(name, speaker, functions)
 
 
 if __name__=='__main__':
