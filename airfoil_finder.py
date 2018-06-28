@@ -108,6 +108,16 @@ class AirfoilFinder(object):
 
 
 # a = AirfoilFinder.get_airfoil_by_ip('192.168.0.50')
+#
+# office_speaker = "Chromecast-Audio-20dcfed9e9bd8cf76a1ad34691dc32ad@Office speaker"
+# bedroom_speaker = "Chromecast-Audio-99130c3591fa2bbff26b770eda819eff@Bedroom speaker"
+#
+# for x in [0.0, 0.5, 1.0, '0.0', '0.5', '1.0', -0.5, 20, '-0.5', '+0.75', '-20', '+20', '-20%', '-120%',
+#           '-0%', '0%', '+0%', '+20%', '+120%']:
+#     vol = a._parse_volume(x, office_speaker)
+#     print('input', x, '\tresult', vol)
+
+
 # a = AirfoilFinder.get_first_airfoil(async=True)
 # print(a.get_sources())
 # print(a.find_source(keywords='system'))

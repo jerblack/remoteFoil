@@ -65,6 +65,37 @@ class Airfoil(object):
             if 'replyID' in response and response['replyID'] == request_id:
                 return response['data']['success']
 
+    def _parse_volume(self, vol):
+        """parse volume percent or numeric input to valid value. numbers outside of valid range are constrained to valid values.
+        possible inputs:
+            0.0->1.0          - returned as-is
+            '0.0->100.0%','0-100%' - return float(pct/100): 65% sets volume to 0.65
+            ['full', 'on', 'unmute', 'enable', 'enabled'] -> 1.0
+            ['none', 'off', 'mute', 'disable', 'disabled'] -> 0.0
+            ['half', 'mid', 'middle'] -> 0.5
+
+        :param vol:
+        :return: parsed volume as float
+        """
+        def constrain(n):
+            return max(min(1.0, float(n)), 0.0)
+
+        if type(vol) in [float, int]:
+            return constrain(vol)
+        if type(vol) is str:
+            if vol.lower() in ['full', 'on', 'unmute', 'enable', 'enabled', 'true']:
+                return 1.0
+            if vol.lower() in ['none', 'off', 'mute', 'disable', 'disabled', 'false']:
+                return 0.0
+            if vol.lower() in ['half', 'mid', 'middle']:
+                return 0.5
+            if '%' in vol:
+                vol = float(vol.replace('%', ''))/100
+            else:
+                vol = float(vol)
+            return constrain(vol)
+
+
     def find_speaker(self, id=None, name=None, keywords=[]):
         caller = sys._getframe(1).f_code.co_name
         speakers = self.get_speakers()
@@ -421,13 +452,10 @@ class Airfoil(object):
                 return result
 
     def set_volume(self, volume, *, id=None, name=None, keywords=[]):
-        base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": None}}
-        if type(volume) in [float, int]:
-            if volume > 1 or volume < 0:
-                raise ValueError('volume must a float or int from 0.0 to 1.0')
-            base_cmd['data']['volume'] = volume
-        else:
-            raise ValueError(f'volume must be a \'float\', not \'{type(volume)}\'')
+        volume = self._parse_volume(volume)
+        base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data":
+                    {"longIdentifier": None, "volume": volume}}
+
         selected_speaker = self.find_speaker(id, name, keywords)
         base_cmd['data']['longIdentifier'] = selected_speaker.id
         self._get_result(base_cmd)
@@ -436,30 +464,26 @@ class Airfoil(object):
     def set_volumes(self, volume, *, ids=[], names=[], include_disconnected=False):
         ids = [i.lower() for i in ids]
         names = [n.lower() for n in names]
-        if type(volume) in [float, int]:
-            if volume > 1 or volume < 0:
-                raise ValueError('volume must a float or int from 0.0 to 1.0')
-            if type(ids) is not list:
-                raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
-            if type(names) is not list:
-                raise ValueError(f'names must be a list of speaker names, not \'{type(names)}\'')
+        volume = self._parse_volume(volume)
+        if type(ids) is not list:
+            raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
+        if type(names) is not list:
+            raise ValueError(f'names must be a list of speaker names, not \'{type(names)}\'')
 
-            self.get_speakers()
-            to_change = []
-            base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data":
-                {"longIdentifier": None, "volume": volume}}
+        self.get_speakers()
+        to_change = []
+        base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data":
+            {"longIdentifier": None, "volume": volume}}
 
-            for speaker in self.speakers:
-                if (ids and speaker.id.lower() in ids) or\
-                        (names and speaker.name.lower() in names) or\
-                        (not ids and not names and (speaker.connected or include_disconnected)):
-                    cmd = copy.deepcopy(base_cmd)
-                    cmd['data']['longIdentifier'] = speaker.id
-                    to_change.append(speaker.id)
-                    self._get_result(cmd)
-            return self.get_speakers(ids=to_change)
-        else:
-            raise ValueError(f'volume must be a \'float\', not \'{type(volume)}\'')
+        for speaker in self.speakers:
+            if (ids and speaker.id.lower() in ids) or\
+                    (names and speaker.name.lower() in names) or\
+                    (not ids and not names and (speaker.connected or include_disconnected)):
+                cmd = copy.deepcopy(base_cmd)
+                cmd['data']['longIdentifier'] = speaker.id
+                to_change.append(speaker.id)
+                self._get_result(cmd)
+        return self.get_speakers(ids=to_change)
 
     def set_volume_some(self, volume, *, ids=[], names=[], include_disconnected=False):
         return self.set_volumes(volume, ids, names, include_disconnected=include_disconnected)
@@ -486,14 +510,12 @@ class Airfoil(object):
         :return:
         """
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": None}}
-        if not type(end_volume) in [float, int]:
-            raise ValueError(f'volume must be a \'float\' or \'int\', not \'{type(end_volume)}\'')
+        end_volume = self._parse_volume(end_volume)
+
         if not type(seconds) in [float, int]:
             raise ValueError(f'seconds must be a \'float\' or \'int\', not \'{type(seconds)}\'')
         if type(ticks) is not int:
             raise ValueError(f'ticks must be an \'int\', not \'{type(ticks)}\'')
-        if end_volume > 1 or end_volume < 0:
-            raise ValueError('volume must a float or int from 0.0 to 1.0')
 
         selected_speaker = self.find_speaker(id, name, keywords)
         current_volume = selected_speaker.volume
@@ -520,15 +542,14 @@ class Airfoil(object):
         :param ids
         :param names
         """
-        base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": None}}
-        if not type(end_volume) in [float, int]:
-            raise ValueError(f'volume must be a \'float\' or \'int\', not \'{type(end_volume)}\'')
+        end_volume = self._parse_volume(end_volume)
+        base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data":
+                    {"longIdentifier": None, "volume": end_volume}}
+
         if not type(seconds) in [float, int]:
             raise ValueError(f'seconds must be a \'float\' or \'int\', not \'{type(seconds)}\'')
         if type(ticks) is not int:
             raise ValueError(f'ticks must be an \'int\', not \'{type(ticks)}\'')
-        if end_volume > 1 or end_volume < 0:
-            raise ValueError('volume must a float or int from 0.0 to 1.0')
         if type(ids) is not list:
             raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
         if type(names) is not list:
@@ -592,7 +613,7 @@ class Airfoil(object):
                 base_cmd['data']['volume'] = muted_speaker.volume
                 del self.muted_speakers[selected_speaker.id]
             else:
-                base_cmd['data']['volume'] = default_volume
+                base_cmd['data']['volume'] = self._parse_volume(default_volume)
             self._get_result(base_cmd)
         return self.get_speakers(ids=[selected_speaker.id])
 
@@ -639,7 +660,7 @@ class Airfoil(object):
                     if speaker.id in self.muted_speakers:
                         volume = self.muted_speakers[speaker.id].volume
                     else:
-                        volume = default_volume
+                        volume = self._parse_volume(default_volume)
                     cmd['data']['volume'] = volume
                     self._get_result(cmd)
                 unmuted.append(speaker.id)

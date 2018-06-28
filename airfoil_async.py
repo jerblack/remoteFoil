@@ -497,7 +497,6 @@ class AirfoilAsync(object):
                     await self._get_result(cmd)
                 else:
                     muted[speaker.id] = self.muted_speakers.get(speaker.id, speaker)
-                    #TODO raise exception if we didn't process all ids or all names
         return muted
 
     async def unmute_some(self, *, ids=[], names=[], default_volume=1.0):
@@ -525,7 +524,6 @@ class AirfoilAsync(object):
                     await self._get_result(cmd)
                 else:
                     unmuted[speaker.id] = speaker.volume
-                    #TODO raise exception if we didn't process all ids or all names
         return unmuted
 
     async def mute_all(self):
