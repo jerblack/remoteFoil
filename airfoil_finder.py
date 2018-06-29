@@ -17,8 +17,8 @@ class AirfoilFinder(object):
         self.on_remove = on_remove
 
     def remove_service(self, zeroconf, type, name):
-        print(f"Service {name} removed")
-        print(f'type: {type}')
+        name = name.split('.')[0].lower()
+        print(f"Airfoil instance '{name}' was removed.")
         if name in self.airfoils:
             del self.airfoils[name]
         if self.on_remove:
@@ -31,7 +31,7 @@ class AirfoilFinder(object):
         name = name.split('.')[0].lower()
         airfoil = Airfoil(ip, port, name)
         self.airfoils[name] = airfoil
-        print(f"Airfoil instance '{name}' found at {ip}:{port}")
+        print(f"Airfoil instance '{name}' found at {ip}:{port}.")
         if self.on_add:
             self.on_add(name, ip, port)
 
@@ -54,8 +54,8 @@ class AirfoilFinder(object):
                 time.sleep(0.25 if timeout >= 0.25 else timeout)
                 if timeout <= 0:
                     finder.close()
-                    raise TimeoutError('timed out looking for Airfoil instances on the network'
-                                    '\n\t\t\t  set a longer timeout or set timeout=None to avoid this.')
+                    raise TimeoutError('Timed out looking for Airfoil instances on the network.'
+                                    '\n\t\t\t  Set a longer timeout or set timeout=None to avoid this.')
         for airfoil in finder.airfoils.values():
             finder.close()
             return airfoil
@@ -70,14 +70,15 @@ class AirfoilFinder(object):
         :return:
         """
         finder = AirfoilFinder()
-        while name not in finder.airfoils:
+        name = name.lower()
+        while not [k for k, v in finder.airfoils.items() if v.name.lower() == name]:
             time.sleep(0.25 if timeout >= 0.25 else timeout)
             if timeout is not None:
                 timeout -= 0.25
                 if timeout <= 0:
                     finder.close()
-                    raise TimeoutError('timed out looking for Airfoil instances on the network'
-                                    '\n\t\t\t  set a longer timeout or set timeout=None to avoid this.')
+                    raise TimeoutError('Timed out looking for Airfoil instances on the network.'
+                                    '\n\t\t\t  Set a longer timeout or set timeout=None to avoid this.')
         finder.close()
         return finder.airfoils[name]
 
@@ -102,8 +103,8 @@ class AirfoilFinder(object):
                 timeout -= 0.25
                 if timeout <= 0:
                     finder.close()
-                    raise TimeoutError('timed out looking for Airfoil instances on the network'
-                                    '\n\t\t\t  set a longer timeout or set timeout=None to avoid this.')
+                    raise TimeoutError('Timed out looking for Airfoil instances on the network.'
+                                    '\n\t\t\t  Set a longer timeout or set timeout=None to avoid this.')
 
 
 

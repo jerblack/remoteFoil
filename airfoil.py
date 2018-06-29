@@ -95,7 +95,6 @@ class Airfoil(object):
                 vol = float(vol)
             return constrain(vol)
 
-
     def find_speaker(self, id=None, name=None, keywords=[]):
         caller = sys._getframe(1).f_code.co_name
         speakers = self.get_speakers()
@@ -268,7 +267,6 @@ class Airfoil(object):
 
     def disconnect_all(self):
         return self.disconnect_speakers()
-
 
     def toggle_speaker(self, *, id=None, name=None, keywords=[]):
         """Disconnect (if connected) and reconnect specified speaker.
