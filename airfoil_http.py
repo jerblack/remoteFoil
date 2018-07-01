@@ -69,18 +69,7 @@ def _airfoil_cmd(name, cmd, speaker=None):
         if not speaker:
             return cmd(airfoil)
         else:
-            match = None
-            try:
-                match = airfoil.find_speaker(id=speaker)
-            except ValueError:
-                try:
-                    match = airfoil.find_speaker(name=speaker)
-                except ValueError:
-                    keywords = airfoil.get_keywords(speaker)
-                    try:
-                        match = airfoil.find_speaker(keywords=keywords)
-                    except ValueError:
-                        pass
+            match = airfoil.find_speaker(unknown=speaker)
             if match:
                 return cmd(airfoil, match)
             else:

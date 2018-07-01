@@ -1,6 +1,9 @@
 import socket, json, random, sys, time, copy
 from collections import namedtuple
 
+ON = ['full', 'on', 'unmute', 'enable', 'enabled', 'true']
+OFF = ['none', 'off', 'mute', 'disable', 'disabled', 'false']
+MIDDLE = ['half', 'mid', 'middle']
 
 class Airfoil(object):
     def __init__(self, ip, port, name):
@@ -77,32 +80,38 @@ class Airfoil(object):
         :param vol:
         :return: parsed volume as float
         """
-        def constrain(n):
-            return max(min(1.0, float(n)), 0.0)
+        def parse_num(n):
+            if n < 0:
+                return 0
+            if 1 < n <= 100:
+                return n/100
+            if n > 100:
+                return 1
+            return n
 
         if type(vol) in [float, int]:
-            return constrain(vol)
+            return parse_num(vol)
+
         if type(vol) is str:
-            if vol.lower() in ['full', 'on', 'unmute', 'enable', 'enabled', 'true']:
+            if vol.lower() in ON:
                 return 1.0
-            if vol.lower() in ['none', 'off', 'mute', 'disable', 'disabled', 'false']:
+            if vol.lower() in OFF:
                 return 0.0
-            if vol.lower() in ['half', 'mid', 'middle']:
+            if vol.lower() in MIDDLE:
                 return 0.5
             if '%' in vol:
-                vol = float(vol.replace('%', ''))/100
+                return parse_num(float(vol.replace('%', '')))
             else:
-                vol = float(vol)
-            return constrain(vol)
+                return parse_num(float(vol))
 
-    def find_speaker(self, id=None, name=None, keywords=[]):
+    def find_speaker(self, id=None, name=None, keywords=[], unknown=None):
         caller = sys._getframe(1).f_code.co_name
         speakers = self.get_speakers()
         selected_speaker = None
-        if not name and not id and not keywords:
+        if not name and not id and not keywords and not unknown:
             raise ValueError(f'{caller} called with no parameters.'
                              '\n\t\t\tmust pass one of the following: id, name, or keywords')
-        elif [bool(name), bool(id), bool(keywords)].count(True) > 1:
+        elif [bool(name), bool(id), bool(keywords), bool(unknown)].count(True) > 1:
             raise ValueError(f'only one keyword parameter can be passed to {caller}.'
                              '\n\t\t\tmust pass only one: id, name, or keywords')
         elif id:
@@ -125,6 +134,19 @@ class Airfoil(object):
                     selected_speaker = speaker
             if not selected_speaker:
                 raise ValueError(f'no speakers were found with the specified keywords:\n\t\t\t{keywords}')
+        elif unknown:
+            unknown = unknown.lower()
+            try:
+                return self.find_speaker(id=unknown)
+            except ValueError:
+                try:
+                    return self.find_speaker(name=unknown)
+                except ValueError:
+                    keywords = self.get_keywords(unknown)
+                    try:
+                        return self.find_speaker(keywords=keywords)
+                    except ValueError:
+                        return None
         return selected_speaker
 
     def find_source(self, id=None, name=None, keywords=[]):
@@ -484,7 +506,7 @@ class Airfoil(object):
         return self.get_speakers(ids=to_change)
 
     def set_volume_some(self, volume, *, ids=[], names=[], include_disconnected=False):
-        return self.set_volumes(volume, ids, names, include_disconnected=include_disconnected)
+        return self.set_volumes(volume, ids=ids, names=names, include_disconnected=include_disconnected)
 
     def set_volume_all(self, volume, include_disconnected=False):
         return self.set_volumes(volume, include_disconnected=include_disconnected)
@@ -729,3 +751,63 @@ class Airfoil(object):
 # for s in a.get_sources():
 #     print('name: ', s.name)
 #     print('  id: ', s.id)
+
+
+def nones(n):
+    return [None for _ in range(n)]
+
+
+def bools(bool_check):
+    return 'yes' if bool_check else 'no'
+
+
+def print_table(headers, rows, sizes):
+    output = []
+    template = ""
+
+    if type(rows[0]) is str:
+        rows = [rows, ]
+    short_sizes = []
+
+    # automatically shrink columns to the minimum required for the longest data if not longer than
+    #   specified size
+    for n, s in enumerate(sizes):
+        max_size = s
+        h_len = len(headers[n])
+        size = h_len if h_len < max_size else max_size
+        for r in rows:
+            s_len = len(r[n])
+            size = s_len if max_size > s_len > size else size
+        short_sizes.append(size)
+
+    for size in short_sizes:
+        template += "{:<"+str(size)+"} "
+
+    def process_row(row):
+        while any(row):
+            line = []
+            rest = []
+            for n, s in enumerate(row):
+                line.append(s[:short_sizes[n]])
+                rest.append(s[short_sizes[n]:])
+            output.append(template.format(*line))
+            row = rest
+
+    process_row(headers)
+    dashes = ['-'*s for s in short_sizes]
+    process_row(dashes)
+
+
+    for row in rows:
+        process_row(row)
+
+    for o in output:
+        print(o)
+
+#
+# header = ['name','id','keywords']
+# rows = [['aabcdefghijklmnopqrstuvwxyz','babcdefghijklmnopqrstuvwxyz','cabcdefghijklmnopqrstuvwxyz'],
+#         ['dabcdefghijklmnopqrstuvwxyz', 'eabcdefghijklmnopqrstuvwxyz', 'fabcdefghijklmnopqrstuvwxyz'],
+#         ['aabcdefghijklmnopqrstuvwxyz','babcdefghijklmnopqrstuvwxyz','cabcdefghijklmnopqrstuvwxyz'],
+#         ['dabcdefghijklmnopqrstuvwxyz', 'eabcdefghijklmnopqrstuvwxyz', 'fabcdefghijklmnopqrstuvwxyz']]
+# print_table(header, rows, (15, 10, 7))

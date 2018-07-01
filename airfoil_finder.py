@@ -1,6 +1,5 @@
 from airfoil import Airfoil
-from zeroconf import ServiceBrowser, Zeroconf
-import zeroconf
+import req.zeroconf as zeroconf
 import time
 
 
@@ -18,7 +17,7 @@ class AirfoilFinder(object):
 
     def remove_service(self, zeroconf, type, name):
         name = name.split('.')[0].lower()
-        print(f"Airfoil instance '{name}' was removed.")
+        print(f"\rAirfoil instance '{name}' was removed.")
         if name in self.airfoils:
             del self.airfoils[name]
         if self.on_remove:
@@ -31,7 +30,7 @@ class AirfoilFinder(object):
         name = name.split('.')[0].lower()
         airfoil = Airfoil(ip, port, name)
         self.airfoils[name] = airfoil
-        print(f"Airfoil instance '{name}' found at {ip}:{port}.")
+        print(f"\rAirfoil instance '{name}' found at {ip}:{port}.")
         if self.on_add:
             self.on_add(name, ip, port)
 
@@ -107,27 +106,28 @@ class AirfoilFinder(object):
                                     '\n\t\t\t  Set a longer timeout or set timeout=None to avoid this.')
 
 
-
-# a = AirfoilFinder.get_airfoil_by_ip('192.168.0.50')
-#
-# office_speaker = "Chromecast-Audio-20dcfed9e9bd8cf76a1ad34691dc32ad@Office speaker"
-# bedroom_speaker = "Chromecast-Audio-99130c3591fa2bbff26b770eda819eff@Bedroom speaker"
-#
-# for x in [0.0, 0.5, 1.0, '0.0', '0.5', '1.0', -0.5, 20, '-0.5', '+0.75', '-20', '+20', '-20%', '-120%',
-#           '-0%', '0%', '+0%', '+20%', '+120%']:
-#     vol = a._parse_volume(x, office_speaker)
-#     print('input', x, '\tresult', vol)
-
-
-# a = AirfoilFinder.get_first_airfoil(async=True)
-# print(a.get_sources())
-# print(a.find_source(keywords='system'))
-# print(a.get_current_source())
-# a.run_in_loop(a.test())
+if __name__ == '__main__':
+    a = AirfoilFinder.get_airfoil_by_ip('192.168.0.50')
+    print(a.get_speakers())
+    #
+    # office_speaker = "Chromecast-Audio-20dcfed9e9bd8cf76a1ad34691dc32ad@Office speaker"
+    # bedroom_speaker = "Chromecast-Audio-99130c3591fa2bbff26b770eda819eff@Bedroom speaker"
+    #
+    # for x in [0.0, 0.5, 1.0, '0.0', '0.5', '1.0', -0.5, 20, '-0.5', '+0.75', '-20', '+20', '-20%', '-120%',
+    #           '-0%', '0%', '+0%', '+20%', '+120%']:
+    #     vol = a._parse_volume(x, office_speaker)
+    #     print('input', x, '\tresult', vol)
 
 
-# a = AirfoilFinder.get_airfoil_by_name('server')
-# a.fade_all(0.3, 4)
-# time.sleep(2)
-# a.fade_all(1.0, 6)
-# print(a.play_pause())
+    # a = AirfoilFinder.get_first_airfoil(async=True)
+    # print(a.get_sources())
+    # print(a.find_source(keywords='system'))
+    # print(a.get_current_source())
+    # a.run_in_loop(a.test())
+
+
+    # a = AirfoilFinder.get_airfoil_by_name('server')
+    # a.fade_all(0.3, 4)
+    # time.sleep(2)
+    # a.fade_all(1.0, 6)
+    # print(a.play_pause())
