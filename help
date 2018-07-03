@@ -1,0 +1,81 @@
+connect
+usage connect: [speaker(s) to connect] connect
+\t# connect speakers \'Office speaker\' and \'Living Room Speaker\'
+\t  {args[0]} office living connect
+
+disconnect
+usage disconnect: [speaker(s) to disconnect] disconnect
+\t# disconnect all currently connected speakers
+\t  {args[0]} toggle
+\t  {args[0]} toggle all
+\t# connect speakers \'Office speaker\' and \'Living Room Speaker\'
+\t  {args[0]} office_speaker living_room_speaker connect
+
+toggle
+usage toggle: [speaker(s) to disconnect] disconnect
+\t# toggle all currently connected speakers
+\t  {args[0]} toggle
+
+fade
+usage fade: fade <volume> [<seconds: default 3.0> [<ticks: default 10>]]
+\t# current volume does not matter. fade will transition from whatever the current level is to
+\t#  the volume level you specify, even between multiple speakers at differing start volumes. 
+\t# fade speakers to 0.2 over 3 seconds in 10 ticks
+\t  fade 0.2
+\t# fade speakers to 0.95 over 10 seconds in 10 ticks 
+\t  fade 0.95 10
+\t# fade speakers to 0.5 over 15.25 seconds in 50 ticks
+\t  fade 50% 15.25 50
+
+volume
+usage volume:volume <volume>
+             <volume>  # volume keyword is optional for volume action
+\t# Set speaker named \Garage AirPlay\ to full volume
+\t   garage_airplay volume 1
+\t   \Garage AIRPLAY\ 100%
+\t   \airplay garage\ full,
+
+
+mute:
+usage mute: mute
+\t# mute speaker named \Living Room Google Home\
+\t   home_living mute,
+specifying_speaker:
+for any command that operates on speakers you can specify either 1, more than 1, or all speakers.
+- commands and speaker names are not case sensitive
+- when specifying a speaker name with spaces you can keep them or replace them with underscores.
+  you can use any of the following to indicate a speaker named \Office Speaker\
+  \"office speaker\", office\ speaker, office_speaker, speaker_office, office, speaker
+- you only need to specify as many words as are required to uniquely identify the speaker from 
+  other speakers. The first speaker to match the given keywords will be returned, and there are no
+  guarantees on which one will be returned first if there are multiple matches.
+  word order does not matter.
+- you can also specify a speaker by its id, which you can see by running \'{args[0]} all table\'
+
+
+volume_levels:
+<volume> can be specified as any of the following:
+\t- a number from 0.0 to 1.0 with up to 8 digits of precision
+\t- a percentage from 0% to 100%
+\t- any of the following will set volume to 1.0
+{ON}
+\t- any of the following will set volume to 0.0
+{OFF}
+\t- any of the following will set volume to 0.5
+{MIDDLE}
+\t- any volume between 1 and 100 will be treated as a percentage
+\t- any volume < 0 will be rounded up to 0
+\t- any volume > 100 will be rounded to 1,
+
+speakers_cmds:
+{} can be used with one, more than one, or all speakers
+ # Set speaker named \Bedroom speaker\ to 50% volume
+  {args[0]} bedroom_speaker volume 50%
+ #   volume in particular does not need to be called with the volume action
+    {args[0]} \living room home\ 20%
+ # Fade \Bedroom speaker\ and \Office speaker\ to 0.8 over 5 seconds
+  {args[0]} bedroom_speaker,office_speaker fade 0.8 5
+ # Mute all connected speakers (all of these work)
+  {args[0]} mute
+  {args[0]} all mute
+  {args[0]} everywhere mute,
