@@ -13,7 +13,7 @@ def print_table(headers, rows, sizes):
     def fit_to_term():
         # find terminal width, then reduce largest column size by 1 until everything fits
         try:
-            x, _ = os.get_terminal_size()
+            x = os.get_terminal_size()[0] - 2
         except OSError:
             x = DEFAULT_WIDTH
         width = sum(short_sizes) + len(short_sizes) - 1
@@ -67,7 +67,7 @@ def print_table(headers, rows, sizes):
 
     for row in rows:
         process_row(row)
-
+    # print(output)
     for o in output:
         print(o)
 

@@ -5,9 +5,8 @@ import time
 
 class AirfoilFinder(object):
     domain = "_slipstreamrem._tcp.local."
-
+    airfoils = {}
     def __init__(self, on_add=None, on_remove=None):
-        self.airfoils = {}
         self.zeroconf = zeroconf.Zeroconf()
         self.browser = zeroconf.ServiceBrowser(self.zeroconf, self.domain, self)
 
@@ -70,16 +69,19 @@ class AirfoilFinder(object):
         """
         finder = AirfoilFinder()
         name = name.lower()
-        while not [k for k, v in finder.airfoils.items() if v.name.lower() == name]:
-            time.sleep(0.25 if timeout >= 0.25 else timeout)
-            if timeout is not None:
-                timeout -= 0.25
-                if timeout <= 0:
+        taken = 0
+        while True:
+            for airfoil in finder.airfoils.values():
+                if airfoil.name == name:
+                    finder.close()
+                    return airfoil
+            if timeout:
+                taken += 0.25
+                if taken >= timeout:
                     finder.close()
                     raise TimeoutError('Timed out looking for Airfoil instances on the network.'
                                     '\n\t\t\t  Set a longer timeout or set timeout=None to avoid this.')
-        finder.close()
-        return finder.airfoils[name]
+            time.sleep(0.25)
 
     @staticmethod
     def get_airfoil_by_ip(ip, timeout=10):
@@ -91,19 +93,20 @@ class AirfoilFinder(object):
         :return:
         """
         finder = AirfoilFinder()
+        taken = 0
         while True:
             for airfoil in finder.airfoils.values():
                 if airfoil.ip == ip:
                     finder.close()
                     return airfoil
-
-            time.sleep(0.25 if timeout >= 0.25 else timeout)
-            if timeout is not None:
-                timeout -= 0.25
-                if timeout <= 0:
+            if timeout:
+                taken += 0.25
+                if taken >= timeout:
                     finder.close()
                     raise TimeoutError('Timed out looking for Airfoil instances on the network.'
-                                    '\n\t\t\t  Set a longer timeout or set timeout=None to avoid this.')
+                                       '\n\t\t\t  Set a longer timeout or set timeout=None to avoid this.')
+            time.sleep(0.25)
+
 
 
 if __name__ == '__main__':

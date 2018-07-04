@@ -56,19 +56,17 @@
     cli sources
     cli source (name, id, or keywords of source)"
 """
-import sys, time, re, json
+import sys, time, json
 from req.utils import nones, bools, print_table
 from airfoil import OFF, ON, MIDDLE
 from airfoil_finder import AirfoilFinder
-args = [re.sub(r'^[-\/\\]*', '', arg).lower() for arg in sys.argv]
-# args = [re.sub(r'[\'\"]', '', arg) for arg in args]
-# print('sys.argv', sys.argv)
-# print('args', args)
+args = [arg.lstrip('-\/\\').lower() for arg in sys.argv]
 
 DEFAULT_TIMEOUT = 3
 DEFAULT_SECONDS = 3
 DEFAULT_TICKS = 10
 DEFAULT_UNMUTE_VOLUME = 1.0
+ACTION_LOG_WIDTH = 45
 
 HELP = ['help', 'h', '?']
 WAIT = ['sleep', 'wait']
@@ -83,11 +81,11 @@ DISCONNECT = ['off', 'no', 'false', 'disconnect', 'disable', 'disabled']
 TOGGLE = ['toggle', 'reset', 'cycle']
 MUTE = ['mute', 'silence', 'silent', 'quiet']
 UNMUTE = ['unmute']
-VOLUME = ['volume', 'level']
+VOLUME = ['volume', 'level', 'vol']
 FADE = ['fade', 'ramp', 'transition', 'timed']
 ALL_SPEAKERS = ['speakers', 'all']
 TIMEOUT = ['timeout', 't', 'limit']
-INCLUDE_DISCONNECTED = ['include_disconnected', 'disconnected']
+INCLUDE_DISCONNECTED = ['id', 'include_disconnected', 'disconnected']
 
 TABLE = ['table', 'grid']
 JSON = ['json']
@@ -232,15 +230,18 @@ class AirfoilCli:
 
     def wait(self, verbose=True):
         if verbose:
-            count = wait = self.wait_time
-            print(f'\rwaiting for {int(count)} seconds ...', end='', flush=True)
-            while wait > 0:
+            count = self.wait_time
+            start = count = int(count) if not count % 1 else float(count)
+            print('\r' + f'waiting {start} seconds: {count}'.ljust(ACTION_LOG_WIDTH),
+                  end='', flush=True)
+            while count > 0:
                 wait = count if count < 1 else 1
-                print(f'\rwaiting for {int(count)} seconds ... {" "*20}', end='', flush=True)
+                print('\r' + f'waiting {start} seconds: {int(count)}'.ljust(ACTION_LOG_WIDTH),
+                      end='', flush=True)
                 time.sleep(wait)
                 count -= 1
-            time_str = int(self.wait_time) if not self.wait_time % 1 else self.wait_time
-            print(f'\rfinished {time_str} second wait.      ', end='', flush=True)
+            print('\r' + f'finished {start} second wait'.ljust(ACTION_LOG_WIDTH+1),
+                  end='', flush=True)
         else:
             time.sleep(self.wait_time)
 
@@ -298,51 +299,27 @@ class AirfoilCli:
         self.source = self.airfoil.set_source(id=self.source.id)
 
     def connect(self):
-        if self.speakers in ALL_SPEAKERS:
-            self.speakers = self.airfoil.connect_all()
-        else:
-            self.speakers = self.airfoil.connect_some(ids=[s.id for s in self.speakers])
+        self.speakers = self.airfoil.connect_some(ids=[s.id for s in self.speakers])
 
     def disconnect(self):
-        if self.speakers in ALL_SPEAKERS:
-            self.speakers = self.airfoil.disconnect_all()
-        else:
-            self.speakers = self.airfoil.disconnect_some(ids=[s.id for s in self.speakers])
+        self.speakers = self.airfoil.disconnect_some(ids=[s.id for s in self.speakers])
 
     def toggle(self):
-        if self.speakers in ALL_SPEAKERS:
-            self.speakers =self.airfoil.toggle_all()
-        else:
-            self.speakers = self.airfoil.toggle_some(ids=[s.id for s in self.speakers])
+        self.speakers = self.airfoil.toggle_some(ids=[s.id for s in self.speakers])
 
     def mute(self):
-        if self.speakers in ALL_SPEAKERS:
-            self.speakers = self.airfoil.mute_all()
-        else:
-            self.speakers = self.airfoil.mute_some(ids=[s.id for s in self.speakers])
+        self.speakers = self.airfoil.mute_some(ids=[s.id for s in self.speakers])
 
     def unmute(self):
-        if self.speakers in ALL_SPEAKERS:
-            self.speakers = self.airfoil.unmute_all(
-                                default_volume=self.volume if self.volume else 1.0)
-        else:
-            self.speakers = self.airfoil.unmute_some(
-                                ids=[s.id for s in self.speakers],
-                                default_volume=self.volume if self.volume else 1.0)
+        self.speakers = self.airfoil.unmute_some(ids=[s.id for s in self.speakers],
+                                                 default_volume=self.volume if self.volume else 1.0)
 
     def set_volume(self):
-        if self.speakers in ALL_SPEAKERS:
-            self.speakers = self.airfoil.set_volume_all(self.volume)
-        else:
-            self.speakers = self.airfoil.set_volume_some(
-                                self.volume, ids=[s.id for s in self.speakers])
+        self.speakers = self.airfoil.set_volume_some(self.volume, ids=[s.id for s in self.speakers])
 
     def fade(self):
-        if self.speakers in ALL_SPEAKERS:
-            self.speakers = self.airfoil.fade_all(self.volume, seconds=self.seconds, ticks=self.ticks)
-        else:
-            self.speakers = self.airfoil.fade_some(self.volume, seconds=self.seconds, ticks=self.ticks,
-                                                   ids=[s.id for s in self.speakers])
+        self.speakers = self.airfoil.fade_some(self.volume, seconds=self.seconds, ticks=self.ticks,
+                                               ids=[s.id for s in self.speakers])
 
     def parse_source(self, source):
         match = None
@@ -381,7 +358,6 @@ class AirfoilCli:
         return self.volume
 
     def print_speakers(self):
-
         if self.print_mode == 'json':
             print(json.dumps([s._asdict() for s in self.speakers]))
             return
@@ -499,7 +475,7 @@ class AirfoilCli:
                     args.pop(list)
 
         def get_speakers():
-            self.speakers = []
+            requested_speakers = []
             for arg in args[1:]:
                 if arg in ALL_ACTIONS:
                     break
@@ -513,13 +489,15 @@ class AirfoilCli:
                     arg = arg.replace('_', ' ')
                     found = self.airfoil.find_speaker(unknown=arg)
                     if found:
-                        self.speakers.append(found)
+                        requested_speakers.append(found)
                     elif arg not in ALL_SPEAKERS:
                         print(f'Error: \'{arg}\' is not a recognized speaker or action ')
-            if not self.speakers or self.speakers in ALL_SPEAKERS:
+                        sys.exit(1)
+            if self.speakers in ALL_SPEAKERS:
                     speakers = self.airfoil.get_speakers()
                     self.speakers = [s for s in speakers if s.connected or self.include_disconnected]
-
+                    if requested_speakers:
+                        self.speakers += requested_speakers
 
         def get_actions():
             action = []
@@ -542,14 +520,15 @@ class AirfoilCli:
     def send_cmds(self):
         def too_many_params(action, max):
             if len(action) > max:
-                print(f'Error: cmd \'{" ".join([str(a) for a in action])}\' has too many arguments')
+                print(f'Error: cmd \'{" ".join([str(a) for a in action])}\' '
+                      f'has too many arguments')
                 self.help(action[0])
 
         for action in self.actions:
             cmd = action[0]
             action_str = " ".join([str(a) for a in action])
-            # if len(self.actions) > 1:
-            print(f'Starting command: \'{action_str}\'.', end='', flush=True)
+            log_entry = f'Starting command: \'{action_str}\''.ljust(ACTION_LOG_WIDTH)
+            print(log_entry, end='', flush=True)
             if cmd in WAIT:
                 wait_error = f"{cmd} requires a positive numeric value to indicate number of" \
                              f" seconds to wait."
@@ -629,8 +608,8 @@ class AirfoilCli:
                         print(f'Error: \'{action[3]}\' is not a valid value for ticks parameter. '
                               f'Ticks must be a whole number.')
                         self.help(cmd, status=1)
-            # if len(self.actions) > 1:
-            print(f'\t[complete]')
+                self.fade()
+            print('[complete]')
         if self.source:
             self.current_source(source=self.source)
         if self.speakers:
@@ -638,5 +617,8 @@ class AirfoilCli:
 
 
 if __name__ == '__main__':
-    a = AirfoilCli()
+    try:
+        a = AirfoilCli()
+    except KeyboardInterrupt:
+        pass
     # print(a.__dict__)
