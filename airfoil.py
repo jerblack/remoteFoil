@@ -1,11 +1,21 @@
 import socket, json, random, sys, time, copy
 from collections import namedtuple
 
+
+
+
 ON = ['full', 'on', 'unmute', 'enable', 'enabled', 'true', 'high', 'hi']
 OFF = ['none', 'off', 'mute', 'disable', 'disabled', 'false', 'low', 'lo']
 MIDDLE = ['half', 'mid', 'middle']
 
 class Airfoil(object):
+    speaker = namedtuple('speaker', ['name', 'type', 'id', 'volume', 'connected', 'password', 'keywords'])
+    source = namedtuple('source', ['name', 'id', 'type', 'keywords', 'icon'])
+    current_source = namedtuple('current_source', ['source_name',
+        'source_has_track_metadata', 'source_controllable', 'track_album',
+        'track_artist', 'track_title', 'track_album_art', 'source_icon',
+        'system_icon'])
+
     def __init__(self, ip, port, name):
         self.ip = ip
         self.port = port
@@ -13,7 +23,6 @@ class Airfoil(object):
         self.sources = []
         self.speakers = []
         self.muted_speakers = {}
-        self.current_source = None
 
     def _connect(self, sock):
         hello = b"com.rogueamoeba.protocol.slipstreamremote\nmajorversion=1,minorversion=5\nOK\n"
@@ -214,7 +223,7 @@ class Airfoil(object):
                     "_replyTypes": ["subscribe", "getSourceMetadata", "connectToSpeaker", "disconnectSpeaker",
                                     "setSpeakerVolume", "getSourceList", "remoteCommand", "selectSource"],
                     "request": "subscribe", "requestID": "-1"}
-        speaker = namedtuple('speaker', ['name', 'type', 'id', 'volume', 'connected', 'password', 'keywords'])
+
         request_id, cmd = self._create_cmd(base_cmd)
         for response in self._get_responses(cmd):
             if 'data' in response:
@@ -222,8 +231,8 @@ class Airfoil(object):
                     speakers = []
                     for s in response['data']['speakers']:
                         keywords = self.get_keywords(s.get('name'))
-                        spk = speaker(s.get('name'), s.get('type'), s.get('longIdentifier'), s.get('volume'),
-                                      s.get('connected'), s.get('password'), keywords)
+                        spk = self.speaker(s.get('name'), s.get('type'), s.get('longIdentifier'), s.get('volume'),
+                                           s.get('connected'), s.get('password'), keywords)
                         if ids or names:
                             if spk.id in ids or spk.name in names:
                                 speakers.append(spk)
@@ -294,13 +303,13 @@ class Airfoil(object):
         """Disconnect (if connected) and reconnect specified speaker.
         Solves problems when Airfoil gets in a bad state"""
         selected_speaker = self.find_speaker(id, name, keywords)
-        result = True
+        result = None
         if selected_speaker.connected:
-            result = self.disconnect_speaker(id=selected_speaker.id)
-        if result:
+            result = self.disconnect_speaker(id=selected_speaker.id)[0]
+        if result and not result.connected or not selected_speaker.connected:
             return self.connect_speaker(id=selected_speaker.id)
         else:
-            return result
+            return []
 
     def toggle_speakers(self, *, ids=[], names=[], include_disconnected=False):
         """Disconnect and reconnect selected speakers.
@@ -331,7 +340,6 @@ class Airfoil(object):
     def get_sources(self, source_icon=False):
         base_cmd = {"request": "getSourceList", "requestID": "-1",
                     "data": {"iconSize": 10, "scaleFactor": 1}}
-        source = namedtuple('source', ['name', 'id', 'type', 'keywords', 'icon'])
         request_id, cmd = self._create_cmd(base_cmd)
         for response in self._get_responses(cmd):
             data = response['data']
@@ -341,7 +349,7 @@ class Airfoil(object):
                 def add_to_source(src, type):
                     icon = src.get('icon', '') if source_icon else ''
                     keywords = self.get_keywords(src['friendlyName'])
-                    sources.append(source(src['friendlyName'], src['identifier'], type, keywords, icon))
+                    sources.append(self.source(src['friendlyName'], src['identifier'], type, keywords, icon))
                 for src in data.get('audioDevices', []):
                     add_to_source(src, type='audio_device')
                 for src in data.get('runningApplications', []):
@@ -454,21 +462,16 @@ class Airfoil(object):
             del base_cmd['data']['requestedData']['album']
             base_cmd['data']['requestedData']['trackMetadataAvailable'] = "false"
         request_id, cmd = self._create_cmd(base_cmd)
-        result_tuple = \
-            namedtuple('current_source', ['source_name', 'source_has_track_metadata', 'source_controllable',
-                                          'track_album', 'track_artist', 'track_title', 'track_album_art',
-                                          'source_icon', 'system_icon'])
 
         for response in self._get_responses(cmd):
             data = response['data']
             if 'metadata' in data:
                 meta = data['metadata']
-                result = result_tuple(meta.get('sourceName'), meta.get('trackMetadataAvailable', False),
-                                      meta.get('remoteControlAvailable', False), meta.get('album', None),
-                                      meta.get('artist', None), meta.get('title', None),
-                                      meta.get('albumArt', None), meta.get('icon', None),
-                                      meta.get('machineIconAndScreenshot', None))
-                self.current_source = result
+                result = self.current_source(meta.get('sourceName'), meta.get('trackMetadataAvailable', False),
+                                             meta.get('remoteControlAvailable', False), meta.get('album', None),
+                                             meta.get('artist', None), meta.get('title', None),
+                                             meta.get('albumArt', None), meta.get('icon', None),
+                                             meta.get('machineIconAndScreenshot', None))
                 return result
 
     def set_volume(self, volume, *, id=None, name=None, keywords=[]):
