@@ -357,10 +357,13 @@ def volume(name, speaker):
                  }
     return _parse_speaker_cmd(name, speaker, functions)
 
-
-if __name__=='__main__':
+def start():
     cli = sys.modules['flask.cli']
     cli.show_server_banner = lambda *x: None
     finder = AirfoilFinder()
     app.run(host='0.0.0.0', port='80', threaded=True)
+
+if __name__=='__main__':
+    start()
+
 

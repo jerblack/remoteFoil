@@ -1,29 +1,9 @@
 import pytest
 from airfoil import Airfoil, ON, OFF, MIDDLE
 from airfoil_finder import AirfoilFinder
+from tests import *
 
 class TestAirfoil:
-    affects_sources = False
-    affects_speakers = False
-    affects_volumes = True
-    changes_sources = pytest.mark.skipif(
-        not affects_sources, reason='test would makes changes to sources')
-    changes_speakers = pytest.mark.skipif(
-        not affects_speakers, reason='test would makes changes to speakers')
-    changes_volumes = pytest.mark.skipif(
-        not affects_volumes, reason='test would makes changes to volumes')
-    airfoil_ip = '192.168.0.50'
-    airfoil_name = 'server'
-    speaker_id = 'Chromecast-Audio-99130c3591fa2bbff26b770eda819eff@Bedroom speaker'
-    speaker_name = 'Bedroom speaker'
-    speaker_keywords = ['bedroom', 'speaker']
-    speaker_name2 = 'Bedroom Shield'
-    speaker_id2 = 'SHIELD-Android-TV-fd75fa2dbc4e513427f5926062f037b3@Bedroom Shield'
-    names = [speaker_name, speaker_name2]
-    ids = [speaker_id, speaker_id2]
-    source_name = 'System Audio'
-    source_id = 'windows.systemaudio'
-    source_keywords = ['system', 'audio']
 
     @pytest.fixture(scope='session')
     def airfoil(self):
@@ -33,20 +13,20 @@ class TestAirfoil:
         assert type(airfoil) is Airfoil
 
     def test_other_airfoils(self):
-        a_by_ip = AirfoilFinder.get_airfoil_by_ip(self.airfoil_ip)
+        a_by_ip = AirfoilFinder.get_airfoil_by_ip(airfoil_ip)
         assert type(a_by_ip) is Airfoil
-        assert a_by_ip.name == self.airfoil_name
-        a_by_name = AirfoilFinder.get_airfoil_by_name(self.airfoil_name)
+        assert a_by_ip.name == airfoil_name
+        a_by_name = AirfoilFinder.get_airfoil_by_name(airfoil_name)
         assert type(a_by_name) is Airfoil
-        assert a_by_name.ip == self.airfoil_ip
+        assert a_by_name.ip == airfoil_ip
 
         for timeout in [10, None, 2, 1000]:
-            a_by_ip = AirfoilFinder.get_airfoil_by_ip(self.airfoil_ip, timeout=timeout)
+            a_by_ip = AirfoilFinder.get_airfoil_by_ip(airfoil_ip, timeout=timeout)
             assert type(a_by_ip) is Airfoil
-            assert a_by_ip.name == self.airfoil_name
-            a_by_name = AirfoilFinder.get_airfoil_by_name(self.airfoil_name, timeout=timeout)
+            assert a_by_ip.name == airfoil_name
+            a_by_name = AirfoilFinder.get_airfoil_by_name(airfoil_name, timeout=timeout)
             assert type(a_by_name) is Airfoil
-            assert a_by_name.ip == self.airfoil_ip
+            assert a_by_name.ip == airfoil_ip
 
     def test_get_keywords(self, airfoil):
         input = '_hello}GOODBYE|123.789\n     tomorrow,afternoon'
@@ -117,11 +97,11 @@ class TestAirfoil:
         assert s.system_icon is None
 
     def test_find_speaker(self, airfoil):
-        s = airfoil.find_speaker(id=self.speaker_id)
+        s = airfoil.find_speaker(id=speaker_id)
         assert type(s) is airfoil.speaker
         assert hasattr(s, 'name') and type(s.name) is str
-        assert s.name == self.speaker_name
-        assert s.id == self.speaker_id
+        assert s.name == speaker_name
+        assert s.id == speaker_id
         with pytest.raises(AttributeError):
             s.icon = 'hello'
         assert hasattr(s, 'id') and type(s.id) is str
@@ -131,11 +111,11 @@ class TestAirfoil:
         assert hasattr(s, 'volume') and type(s.volume) is float
         assert hasattr(s, 'connected') and type(s.connected) is bool
 
-        s = airfoil.find_speaker(name=self.speaker_name)
+        s = airfoil.find_speaker(name=speaker_name)
         assert type(s) is airfoil.speaker
         assert hasattr(s, 'name') and type(s.name) is str
-        assert s.name == self.speaker_name
-        assert s.id == self.speaker_id
+        assert s.name == speaker_name
+        assert s.id == speaker_id
         assert hasattr(s, 'id') and type(s.id) is str
         assert hasattr(s, 'type') and type(s.type) is str
         assert hasattr(s, 'password') and type(s.password) is bool
@@ -143,11 +123,11 @@ class TestAirfoil:
         assert hasattr(s, 'volume') and type(s.volume) is float
         assert hasattr(s, 'connected') and type(s.connected) is bool
 
-        s = airfoil.find_speaker(keywords=self.speaker_keywords)
+        s = airfoil.find_speaker(keywords=speaker_keywords)
         assert type(s) is airfoil.speaker
         assert hasattr(s, 'name') and type(s.name) is str
-        assert s.name == self.speaker_name
-        assert s.id == self.speaker_id
+        assert s.name == speaker_name
+        assert s.id == speaker_id
         assert hasattr(s, 'id') and type(s.id) is str
         assert hasattr(s, 'type') and type(s.type) is str
         assert hasattr(s, 'password') and type(s.password) is bool
@@ -157,11 +137,11 @@ class TestAirfoil:
 
         s = airfoil.find_speaker(unknown='speaker--++..bedroom')
         assert type(s) is airfoil.speaker
-        assert s.name == self.speaker_name
-        assert s.id == self.speaker_id
+        assert s.name == speaker_name
+        assert s.id == speaker_id
 
     def test_find_source(self, airfoil):
-        s = airfoil.find_source(id=self.source_id)
+        s = airfoil.find_source(id=source_id)
         # source(name='System Audio', id='windows.systemaudio', type='system_audio',
         #        keywords=['system', 'audio'], icon='')
         assert hasattr(s, 'name') and type(s.name) is str
@@ -169,21 +149,21 @@ class TestAirfoil:
         assert hasattr(s, 'keywords') and type(s.keywords) is list
         assert hasattr(s, 'id') and type(s.id) is str
         assert hasattr(s, 'icon') and type(s.icon) is str
-        assert s.name == self.source_name
-        assert s.id == self.source_id
-        assert s.keywords == self.source_keywords
-        s = airfoil.find_source(name=self.source_name)
-        assert s.name == self.source_name
-        assert s.id == self.source_id
-        assert s.keywords == self.source_keywords
-        s = airfoil.find_source(keywords=self.source_keywords)
-        assert s.name == self.source_name
-        assert s.id == self.source_id
-        assert s.keywords == self.source_keywords
+        assert s.name == source_name
+        assert s.id == source_id
+        assert s.keywords == source_keywords
+        s = airfoil.find_source(name=source_name)
+        assert s.name == source_name
+        assert s.id == source_id
+        assert s.keywords == source_keywords
+        s = airfoil.find_source(keywords=source_keywords)
+        assert s.name == source_name
+        assert s.id == source_id
+        assert s.keywords == source_keywords
 
     @changes_sources
     def test_set_source(self, airfoil):
-        s = airfoil.set_source(name=self.source_name)
+        s = airfoil.set_source(name=source_name)
         # current_source(source_name='System Audio', source_has_track_metadata=False,
         #                source_controllable=False, track_album=None, track_artist=None,
         #                track_title=None, track_album_art=None, source_icon=None, system_icon=None)
@@ -203,11 +183,11 @@ class TestAirfoil:
         assert type(s.source_icon) in [str, type(None)]
         assert hasattr(s, 'system_icon')
         assert type(s.system_icon) in [str, type(None)]
-        assert s.source_name == self.source_name
-        s = airfoil.set_source(id=self.source_id)
-        assert s.source_name == self.source_name
-        s = airfoil.set_source(keywords=self.source_keywords)
-        assert s.source_name == self.source_name
+        assert s.source_name == source_name
+        s = airfoil.set_source(id=source_id)
+        assert s.source_name == source_name
+        s = airfoil.set_source(keywords=source_keywords)
+        assert s.source_name == source_name
 
     @changes_sources
     def test_media_keys(self, airfoil):
@@ -217,129 +197,129 @@ class TestAirfoil:
 
     @changes_speakers
     def test_disconnect_speaker(self, airfoil):
-        results = airfoil.disconnect_speaker(name=self.speaker_name)
+        results = airfoil.disconnect_speaker(name=speaker_name)
         assert type(results) is list
         s = results[0]
         assert type(s) is airfoil.speaker
-        assert s.name == self.speaker_name
+        assert s.name == speaker_name
         assert not s.connected
 
     @changes_speakers
     def test_connect_speaker(self, airfoil):
-        results = airfoil.connect_speaker(name=self.speaker_name)
+        results = airfoil.connect_speaker(name=speaker_name)
         assert type(results) is list
         s = results[0]
         assert type(s) is airfoil.speaker
-        assert s.name == self.speaker_name
+        assert s.name == speaker_name
         assert s.connected
 
     @changes_speakers
     def test_disconnect_connect_speakers_multiple(self, airfoil):
-        s = airfoil.disconnect_speaker(name=self.speaker_name)[0]
+        s = airfoil.disconnect_speaker(name=speaker_name)[0]
         assert type(s) is airfoil.speaker
-        assert s.name == self.speaker_name
+        assert s.name == speaker_name
         assert not s.connected
-        s = airfoil.connect_speaker(name=self.speaker_name)[0]
+        s = airfoil.connect_speaker(name=speaker_name)[0]
         assert type(s) is airfoil.speaker
-        assert s.name == self.speaker_name
+        assert s.name == speaker_name
         assert s.connected
-        s = airfoil.disconnect_speaker(id=self.speaker_id)[0]
+        s = airfoil.disconnect_speaker(id=speaker_id)[0]
         assert type(s) is airfoil.speaker
-        assert s.name == self.speaker_name
+        assert s.name == speaker_name
         assert not s.connected
-        s = airfoil.connect_speaker(id=self.speaker_id)[0]
+        s = airfoil.connect_speaker(id=speaker_id)[0]
         assert type(s) is airfoil.speaker
-        assert s.name == self.speaker_name
+        assert s.name == speaker_name
         assert s.connected
-        s = airfoil.disconnect_speaker(keywords=self.speaker_keywords)[0]
+        s = airfoil.disconnect_speaker(keywords=speaker_keywords)[0]
         assert type(s) is airfoil.speaker
-        assert s.name == self.speaker_name
+        assert s.name == speaker_name
         assert not s.connected
-        s = airfoil.connect_speaker(keywords=self.speaker_keywords)[0]
+        s = airfoil.connect_speaker(keywords=speaker_keywords)[0]
         assert type(s) is airfoil.speaker
-        assert s.name == self.speaker_name
+        assert s.name == speaker_name
         assert s.connected
 
     @changes_speakers
     def test_toggle_speaker_from_connected_state(self, airfoil):
         # test from connected state
-        s = airfoil.connect_speaker(name=self.speaker_name)[0]
+        s = airfoil.connect_speaker(name=speaker_name)[0]
         assert s.connected
-        results = airfoil.toggle_speaker(name=self.speaker_name)
+        results = airfoil.toggle_speaker(name=speaker_name)
         assert type(results) is list
         s = results[0]
         assert type(s) is airfoil.speaker
-        assert s.name == self.speaker_name
+        assert s.name == speaker_name
         assert s.connected
 
     @changes_speakers
     def test_toggle_speaker_from_disconnected_state(self, airfoil):
         # test from disconnected state
-        s = airfoil.disconnect_speaker(name=self.speaker_name)[0]
+        s = airfoil.disconnect_speaker(name=speaker_name)[0]
         assert not s.connected
-        results = airfoil.toggle_speaker(name=self.speaker_name)
+        results = airfoil.toggle_speaker(name=speaker_name)
         assert type(results) is list
         s = results[0]
         assert type(s) is airfoil.speaker
-        assert s.name == self.speaker_name
+        assert s.name == speaker_name
         assert s.connected
 
     @changes_speakers
     def test_disconnect_connect_multiple_speakers(self, airfoil):
         result = airfoil.disconnect_speakers(
-            names=[self.speaker_name, self.speaker_name2])
+            names=[speaker_name, speaker_name2])
         for s in result:
             assert not s.connected
         result = airfoil.connect_speakers(
-            names=[self.speaker_name, self.speaker_name2])
+            names=[speaker_name, speaker_name2])
         for s in result:
             assert s.connected
 
         result = airfoil.disconnect_some(
-            ids=[self.speaker_id, self.speaker_id2])
+            ids=[speaker_id, speaker_id2])
         for s in result:
             assert not s.connected
         result = airfoil.connect_some(
-            ids=[self.speaker_id, self.speaker_id2])
+            ids=[speaker_id, speaker_id2])
         for s in result:
             assert s.connected
 
     @changes_speakers
     def test_toggle_multiple_speakers_from_disconnected_state_by_name(self, airfoil):
-        result = airfoil.disconnect_speakers(ids=self.ids)
+        result = airfoil.disconnect_speakers(ids=ids)
         for s in result:
             assert not s.connected
         result = airfoil.toggle_speakers(
-            names=[self.speaker_name, self.speaker_name2])
+            names=[speaker_name, speaker_name2])
         for s in result:
             assert s.connected
 
     @changes_speakers
     def test_toggle_multiple_speakers_from_disconnected_state_by_id(self, airfoil):
-        result = airfoil.disconnect_speakers(ids=self.ids)
+        result = airfoil.disconnect_speakers(ids=ids)
         for s in result:
             assert not s.connected
-        result = airfoil.toggle_some(ids=self.ids)
+        result = airfoil.toggle_some(ids=ids)
         for s in result:
             assert s.connected
 
     @changes_speakers
     def test_toggle_multiple_speakers_from_connected_state_by_name(self, airfoil):
-        result = airfoil.connect_speakers(ids=self.ids)
+        result = airfoil.connect_speakers(ids=ids)
         for s in result:
             assert s.connected
-        result = airfoil.toggle_speakers(names=self.names)
+        result = airfoil.toggle_speakers(names=names)
         for s in result:
             assert s.connected
 
     @changes_speakers
     def test_toggle_multiple_speakers_from_connected_state_by_id(self, airfoil):
-        result = airfoil.connect_speakers(ids=self.ids)
+        result = airfoil.connect_speakers(ids=ids)
         assert type(result) is list
         assert len(result) == 2
         for s in result:
             assert s.connected
-        result = airfoil.toggle_some(ids=self.ids)
+        result = airfoil.toggle_some(ids=ids)
         for s in result:
             assert s.connected
 
@@ -350,12 +330,12 @@ class TestAirfoil:
                      '50': 0.5, '-20': 0.0}
         for v in [n/100 for n in range(0, 101, 4)] + OFF + MIDDLE + ON + \
                  [s for s in outsiders.keys()]:
-            result = airfoil.set_volume(v, name=self.speaker_name)
+            result = airfoil.set_volume(v, name=speaker_name)
             assert type(result) is list
             assert result
             s = result[0]
             assert type(s) is airfoil.speaker
-            assert s.name == self.speaker_name
+            assert s.name == speaker_name
             if v not in ON + OFF + MIDDLE + [s for s in outsiders.keys()]:
                 assert s.volume == v
             elif v in OFF:
@@ -374,11 +354,11 @@ class TestAirfoil:
     @changes_volumes
     def test_set_volume_speakers(self, airfoil):
         for v in [n/100 for n in range(0, 101, 4)] + OFF + MIDDLE + ON:
-            result = airfoil.set_volumes(v, names=self.names)
+            result = airfoil.set_volumes(v, names=names)
             assert type(result) is list
             for s in result:
                 assert type(s) is airfoil.speaker
-                assert s.name in self.names
+                assert s.name in names
                 if v not in ON + OFF + MIDDLE:
                     assert s.volume == v
                 elif v in OFF:
@@ -387,11 +367,11 @@ class TestAirfoil:
                     assert s.volume == 0.5
                 elif v in ON:
                     assert s.volume == 1.0
-            result = airfoil.set_volume_some(v, ids=self.ids)
+            result = airfoil.set_volume_some(v, ids=ids)
             assert type(result) is list
             for s in result:
                 assert type(s) is airfoil.speaker
-                assert s.name in self.names
+                assert s.name in names
                 if v not in ON + OFF + MIDDLE:
                     assert s.volume == v
                 elif v in OFF:
@@ -421,7 +401,7 @@ class TestAirfoil:
 
     @changes_volumes
     def test_mute(self, airfoil):
-        result = airfoil.mute(name=self.speaker_name)
+        result = airfoil.mute(name=speaker_name)
         assert type(result) is list
         for s in result:
             assert type(s) is airfoil.speaker
@@ -429,9 +409,9 @@ class TestAirfoil:
 
     @changes_volumes
     def test_unmute(self, airfoil):
-        result = airfoil.set_volume(0, name=self.speaker_name)
+        result = airfoil.set_volume(0, name=speaker_name)
         assert result[0].volume == 0.0
-        result = airfoil.unmute(name=self.speaker_name)
+        result = airfoil.unmute(name=speaker_name)
         assert type(result) is list
         for s in result:
             assert type(s) is airfoil.speaker
@@ -440,9 +420,9 @@ class TestAirfoil:
     @changes_volumes
     def test_unmute_default_volume(self, airfoil):
         for v in [r/100 for r in range(1, 101, 20)]:
-            result = airfoil.set_volume(0, name=self.speaker_name)
+            result = airfoil.set_volume(0, name=speaker_name)
             assert result[0].volume == 0.0
-            result = airfoil.unmute(name=self.speaker_name, default_volume=v)
+            result = airfoil.unmute(name=speaker_name, default_volume=v)
             assert type(result) is list
             for s in result:
                 assert type(s) is airfoil.speaker
@@ -451,24 +431,21 @@ class TestAirfoil:
     @changes_volumes
     def test_unmute_some(self, airfoil):
         for v in [r/100 for r in range(1, 101, 20)]:
-            result = airfoil.set_volumes(0, names=self.names)
+            result = airfoil.set_volumes(0, names=names)
             for s in result:
                 assert s.volume == 0.0
-            result = airfoil.unmutes(names=self.names, default_volume=v)
+            result = airfoil.unmutes(names=names, default_volume=v)
             assert type(result) is list
             for s in result:
                 assert type(s) is airfoil.speaker
                 assert s.volume == v
-                # TODO test not completing
-
-
 
     @changes_volumes
     def test_fade_volume(self, airfoil):
         tests = [[0.0, 4, 3], [1.0, 4, 40], [0.4, 10, 120], [120, 12, 30]]
         for vol, seconds, ticks in tests:
             result = airfoil.fade_volume(
-                vol, seconds, ticks=ticks, name=self.speaker_name)
+                vol, seconds, ticks=ticks, name=speaker_name)
             assert type(result) is list
             for s in result:
                 assert type(s) is airfoil.speaker
@@ -479,7 +456,7 @@ class TestAirfoil:
         tests = [[0.0, 4, 3], [1.0, 4, 40], [0.4, 10, 120], [120, 12, 30]]
         for vol, seconds, ticks in tests:
             result = airfoil.fade_some(
-                vol, seconds, ticks=ticks, names=self.names)
+                vol, seconds, ticks=ticks, names=names)
             assert type(result) is list
             for s in result:
                 assert type(s) is airfoil.speaker

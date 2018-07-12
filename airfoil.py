@@ -64,6 +64,13 @@ class Airfoil(object):
         return request_id, byte_cmd
 
     def get_keywords(self, name):
+        """
+        Airfoil.get_keyword will parse a string into appropriate keywords by replacing all alphanumeric characters with
+         a space, and then splitting the line into a list. keywords can be used when searching for speakers or sources
+         in other methods.
+        :param name:    string to get keywords for
+        :return:        list of keywords for name parameter
+        """
         name = "".join([ch if ch.isalnum() else " " for ch in name])
         name = name.strip().lower()
         while '  ' in name:
@@ -78,16 +85,21 @@ class Airfoil(object):
                 return response['data']['success']
 
     def _parse_volume(self, vol):
-        """parse volume percent or numeric input to valid value. numbers outside of valid range are constrained to valid values.
-        possible inputs:
-            0.0->1.0          - returned as-is
-            '0.0->100.0%','0-100%' - return float(pct/100): 65% sets volume to 0.65
-            ['full', 'on', 'unmute', 'enable', 'enabled'] -> 1.0
-            ['none', 'off', 'mute', 'disable', 'disabled'] -> 0.0
-            ['half', 'mid', 'middle'] -> 0.5
+        """
+            Airfoil._parse_volume will parse percent or numeric input to a valid value for Airfoil volume.
+            numbers outside of the range of 0.0 to 1.0 are constrained to valid values.
+            possible inputs:
+                0.0->1.0          - returned as-is
+                '0.0->100.0%','0-100%' - return float(pct/100): 65% sets volume to 0.65
+                1-100   treated as percent like above
+                <0      rounded to 0.0
+                >100    rounded to 1.0
+                ['full', 'on', 'unmute', 'enable', 'enabled'] -> 1.0
+                ['none', 'off', 'mute', 'disable', 'disabled'] -> 0.0
+                ['half', 'mid', 'middle'] -> 0.5
 
-        :param vol:
-        :return: parsed volume as float
+        :param vol:     can be int, float, number as str, percent as str, descriptor as str
+        :return:        parsed volume as float from 0.0 to 1.0
         """
         def parse_num(n):
             if n < 0:
@@ -114,6 +126,27 @@ class Airfoil(object):
                 return parse_num(float(vol))
 
     def find_speaker(self, id=None, name=None, keywords=[], unknown=None):
+        """
+            Airfoil.find_speaker will find and return an Airfoil.speaker object matching the given parameters. None of the
+            parameters are case-sensitive.
+            - Passing id or name will return the speaker that matches the exact name or id that was given.
+            - Passing keywords will return the first speaker to match all of the given keywords. If more than one
+              speaker matches, there are no guarantees about which one will be returned. Be sure to use enough
+              keywords to uniquely identify your speaker.
+            - if no match is found for a parameter passed as name, id, or keywords, a ValueError will be raised.
+            - Passing a parameter as unknown will attempt three searches.
+                1. try with parameter as a name.
+                2. try with parameter as an id
+                3. turn parameter into keywords if it's not already a list and does a search by keywords.
+              If no match is made using all three methods, None is returned
+
+
+        :param id:          speaker id as string, not case-sensitive
+        :param name:        speaker name as string, not case-sensitive
+        :param keywords:    speaker keywords as list of strings, not case-sensitive
+        :param unknown:     one of the above, not case-sensitive
+        :return:            either an Airfoil.speaker object or None
+        """
         caller = sys._getframe(1).f_code.co_name
         speakers = self.get_speakers()
         selected_speaker = None
@@ -159,6 +192,20 @@ class Airfoil(object):
         return selected_speaker
 
     def find_source(self, id=None, name=None, keywords=[]):
+        """
+            Airfoil.find_source will find and return an Airfoil.source object matching the given parameters. None of the
+            parameters are case-sensitive.
+            - Passing id or name will return the source that matches the exact name or id that was given.
+            - Passing keywords will return the first source to match all of the given keywords. If more than one
+              source matches, there are no guarantees about which one will be returned. Be sure to use enough
+              keywords to uniquely identify your source.
+            - if no match is found for a parameter passed as name, id, or keywords, a ValueError will be raised.
+
+                :param id:          source id as string, not case-sensitive
+                :param name:        source name as string, not case-sensitive
+                :param keywords:    source keywords as list of strings, not case-sensitive
+                :return:            an Airfoil.source object
+                """
         caller = sys._getframe(1).f_code.co_name
         sources = self.get_sources()
         selected_source = None
@@ -192,6 +239,13 @@ class Airfoil(object):
         return selected_source
 
     def watch(self):
+        """
+            Airfoil.watch is a Python generator that will yield all activity that occurs from Airfoil as changes occur.
+            The following categories of events will be yielded from this generator as they occur, regardless of where
+            they were initiated from:
+                "sourceMetadataChanged", "remoteControlChangedRequest", "speakerConnectedChanged",
+                "speakerListChanged",  "speakerNameChanged", "speakerPasswordChanged", "speakerVolumeChanged"
+        """
         base_cmd = {"request": "subscribe", "requestID": "-1", "data": {
             "notifications": ["sourceMetadataChanged", "remoteControlChangedRequest", "speakerConnectedChanged",
                               "speakerListChanged",  "speakerNameChanged", "speakerPasswordChanged",
@@ -208,15 +262,45 @@ class Airfoil(object):
         return self._get_result(base_cmd)
 
     def play_pause(self):
+        """
+            Airfoil.play_pause sends a play_pause command to Airfoil.
+            If your current_source supports remote control and the command is successfully sent, True will be returned.
+            Use Airfoil.get_current_source() to determine if current source supports remote control.
+        :return: boolean value indicating Airfoil's success in controlling the current source.
+        """
         return self._media_cmd("PlayPause")
 
     def next_track(self):
+        """
+            Airfoil.next_track sends a next_track command to Airfoil.
+            If your current_source supports remote control and the command is successfully sent, True will be returned.
+            Use Airfoil.get_current_source() to determine if current source supports remote control.
+        :return: boolean value indicating Airfoil's success in controlling the current source.
+        """
         return self._media_cmd("NextTrack")
 
     def last_track(self):
+        """
+            Airfoil.last_track sends a last_track command to Airfoil.
+            If your current_source supports remote control and the command is successfully sent, True will be returned.
+            Use Airfoil.get_current_source() to determine if current source supports remote control.
+        :return: boolean value indicating Airfoil's success in controlling the current source.
+        """
         return self._media_cmd("PreviousTrack")
 
     def get_speakers(self, ids=[], names=[]):
+        """
+            Airfoil.get_speakers returns a list of Airfoil.speaker objects matching any ids or names that were passed
+            as parameters. You can call this method with zero, one, or both parameters.
+            -  passing no parameters returns all speakers
+            -  passing one or both parameters returns all matching speakers.
+            -  no checks are performed to ensure that all ids and names match, so verify that the number of speakers
+               returned matches what you expected.
+            -  list of returned speakers is also saved to self.speakers
+        :param ids:     list of speaker ids, not case-sensitive
+        :param names:   list of speaker names, not case-sensitive
+        :return:        list of Airfoil.speaker objects matching request
+        """
         base_cmd = {"data": { "notifications":
             ["speakerListChanged", "speakerConnectedChanged", "speakerPasswordChanged",
              "speakerVolumeChanged", "speakerNameChanged", "remoteControlChangedRequest"]},
@@ -242,6 +326,16 @@ class Airfoil(object):
                     return speakers
 
     def connect_speaker(self, *, id=None, name=None, keywords=[]):
+        """
+        Airfoil.connect_speaker will tell Airfoil to connect one speaker based on the id, name, or keywords given as a
+         parameter. Only one parameter is required; passing multiple parameters here will raise a ValueError exception.
+        - if the speaker is already connected, a message will be printed to the log, but no exception will be
+          raised.
+        :param id:          speaker id, string, not case-sensitive
+        :param name:        speaker name, string, not case-sensitive
+        :param keywords:    speaker keywords, list of strings, not case-sensitive
+        :return:            list with Airfoil.speaker object representing the speaker that was connected.
+        """
         base_cmd = {"request": "connectToSpeaker", "requestID": "-1",
                     "data": {"longIdentifier": None}}
         selected_speaker = self.find_speaker(id, name, keywords)
@@ -253,6 +347,26 @@ class Airfoil(object):
         return self.get_speakers(ids=[selected_speaker.id])
 
     def connect_speakers(self, *, ids=[], names=[]):
+        """
+        Airfoil.connect_speakers will tell Airfoil to connect multiple speakers based on the names or ids that are
+        given as parameters. You can call this method with zero, one, or both parameters.
+            -  passing no parameters disconnects all currently connected speakers.
+            -  passing one or both parameters disconnects all matching speakers.
+            -  no checks are performed to ensure that all ids and names match, so verify that the number of speakers
+               returned matches what you expected.
+            -  the list of affected speakers is also saved to self.speakers
+
+        Note on group commands: All commands that work on a collection of speakers like this will parse the given
+        parameters into a list of speakers, and then give Airfoil individual commands for each change to each
+        speaker. Calling this method with 10 speaker ids will result in 10 separate commands sent to Airfoil, and the
+        speakers will appear to connect sequentially. This may take some time, and the method will not return until
+        all actions have completed. Check the list of speakers that is returned to ensure all its properties have the
+        expected values, such as with:
+            [speaker.id for speaker in Airfoil.speakers if not speaker.connected] -> list of speakers not connected
+        :param ids:     list of speaker ids, not case-sensitive
+        :param names:   list of speaker names, not case-sensitive
+        :return:        list of Airfoil.speaker objects matching request
+        """
         self.get_speakers()
         to_change = []
         for speaker in self.speakers:
@@ -265,12 +379,32 @@ class Airfoil(object):
         return self.get_speakers(ids=to_change)
 
     def connect_some(self, *, ids=[], names=[]):
+        """
+        Airfoil.connect_some is an alias for Airfoil.connect_speakers. See documentation for Airfoil.connect_speakers.
+        :param ids:     list of speaker ids, not case-sensitive
+        :param names:   list of speaker names, not case-sensitive
+        :return:        list of Airfoil.speaker objects matching request
+        """
         return self.connect_speakers(ids=ids, names=names)
 
     def connect_all(self):
+        """
+        Airfoil.connect_all is an alias for Airfoil.connect_speakers() called with no parameters. This method will tell
+        Airfoil to connect every speaker that it can see. See documentation for Airfoil.connect_speakers.
+        :return:        list of Airfoil.speaker objects matching request
+        """
         return self.connect_speakers()
 
     def disconnect_speaker(self, *, id=None, name=None, keywords=[]):
+        """
+        Airfoil.disconnect_speaker will tell Airfoil to disconnect one speaker based on the id, name, or keywords given
+         as a parameter. Only one parameter is required; passing multiple parameters will raise a ValueError exception.
+        - if the speaker is already connected, a message will be printed, but no exception will be raised.
+        :param id:          speaker id, string, not case-sensitive
+        :param name:        speaker name, string, not case-sensitive
+        :param keywords:    speaker keywords, list of strings, not case-sensitive
+        :return:            list with Airfoil.speaker object representing the speaker that was connected.
+        """
         base_cmd = {"request": "disconnectSpeaker", "requestID": "-1",
                     "data": {"longIdentifier": None}}
         selected_speaker = self.find_speaker(id, name, keywords)
@@ -282,6 +416,26 @@ class Airfoil(object):
         return self.get_speakers(ids=[selected_speaker.id])
 
     def disconnect_speakers(self, *, ids=[], names=[]):
+        """
+            Airfoil.disconnect_speakers will tell Airfoil to disconnect multiple speakers based on the names or ids that
+            are given as parameters. You can call this method with zero, one, or both parameters.
+                -  passing no parameters connects all speakers that Airfoil can see.
+                -  passing one or both parameters connects all matching speakers.
+                -  no checks are performed to ensure that all ids and names match, so verify that the number of speakers
+                   returned matches what you expected.
+                -  the list of affected speakers is also saved to self.speakers
+
+            Note on group commands: All commands that work on a collection of speakers like this will parse the given
+            parameters into a list of speakers, and then give Airfoil individual commands for each change to each
+            speaker. Calling this method with 10 speaker ids will result in 10 separate commands sent to Airfoil, and the
+            speakers will appear to connect sequentially. This may take some time, and the method will not return until
+            all actions have completed. Check the list of speakers that is returned to ensure all its properties have the
+            expected values, such as with:
+                [speaker.id for speaker in Airfoil.speakers if speaker.connected] -> list of speakers still connected
+            :param ids:     list of speaker ids, not case-sensitive
+            :param names:   list of speaker names, not case-sensitive
+            :return:        list of Airfoil.speaker objects matching request
+            """
         self.get_speakers()
         to_change = []
         for speaker in self.speakers:
@@ -294,14 +448,35 @@ class Airfoil(object):
         return self.get_speakers(ids=to_change)
 
     def disconnect_some(self, *, ids=[], names=[]):
+        """
+        Airfoil.disconnect_some is an alias for Airfoil.disconnect_speakers.
+         See documentation for Airfoil.disconnect_speakers.
+        :param ids:     list of speaker ids, not case-sensitive
+        :param names:   list of speaker names, not case-sensitive
+        :return:        list of Airfoil.speaker objects matching request
+        """
         return self.disconnect_speakers(ids=ids, names=names)
 
     def disconnect_all(self):
+        """
+        Airfoil.disconnect_all is an alias for Airfoil.disconnect_speakers() called with no parameters. This method will
+         tell Airfoil to disconnect all currently connected speakers. See documentation for Airfoil.disconnect_speakers.
+        :return:        list of Airfoil.speaker objects matching request
+        """
         return self.disconnect_speakers()
 
     def toggle_speaker(self, *, id=None, name=None, keywords=[]):
-        """Disconnect (if connected) and reconnect specified speaker.
-        Solves problems when Airfoil gets in a bad state"""
+        """
+        Airfoil.toggle_speaker will tell Airfoil to disconnect and then reconnect one speaker based on the id, name, or
+         keywords given as a parameter. This is useful for scenarios where the the sound stops working after changing a
+         source, or some other playback problem occurs. Only one parameter is required; passing multiple parameters will
+         raise a ValueError exception.
+        - if the speaker is already disconnected, the speaker will just be connected.
+        :param id:          speaker id, string, not case-sensitive
+        :param name:        speaker name, string, not case-sensitive
+        :param keywords:    speaker keywords, list of strings, not case-sensitive
+        :return:            list with Airfoil.speaker object representing the speaker that was toggled.
+        """
         selected_speaker = self.find_speaker(id, name, keywords)
         result = None
         if selected_speaker.connected:
@@ -312,8 +487,33 @@ class Airfoil(object):
             return []
 
     def toggle_speakers(self, *, ids=[], names=[], include_disconnected=False):
-        """Disconnect and reconnect selected speakers.
-        Solves problems when Airfoil gets in a bad state"""
+        """
+            Airfoil.toggle_speakers will tell Airfoil to disconnect and then reconnect multiple speakers based on the
+            names or ids that are given as parameters. You can call this method with zero, one, or both ids and names
+            parameters.
+                -  passing neither ids nor names toggles all currently connected speakers.
+                    - If you want to disconnect all currently connected speakers, and then connect all speakers (not
+                      just the speakers that were connected at the beginning of the action), set
+                      include_disconnected=True.
+                -  passing one or both parameters connects all matching speakers.
+                -  no checks are performed to ensure that all ids and names match, so verify that the number of speakers
+                   returned matches what you expected.
+                -  the list of affected speakers is also saved to self.speakers
+
+            Note on group commands: All commands that work on a collection of speakers like this will parse the given
+            parameters into a list of speakers, and then give Airfoil individual commands for each change to each
+            speaker. Calling this method with 10 speaker ids will result in 20 separate commands sent to Airfoil, with
+            all the currently connected speakers disconnected sequentially, and then all speakers will be reconnected
+            sequentially . This may take some time, and the method will not return until all actions have completed.
+            Check the list of speakers that is returned to ensure all its properties have the expected values, such as
+            with:
+                [speaker.id for speaker in Airfoil.speakers if not speaker.connected] -> list of speakers that did not
+                disconnect, representing a failure to toggle the speakers for some reason.
+            :param ids:     list of speaker ids, not case-sensitive
+            :param names:   list of speaker names, not case-sensitive
+            :param include_disconnected:    boolean, default True, only toggle speakers that are currently connected
+            :return:        list of Airfoil.speaker objects showing their state after your request
+            """
         self.get_speakers()
         to_change = []
         for speaker in self.speakers:
@@ -329,15 +529,32 @@ class Airfoil(object):
         return self.get_speakers(ids=to_change)
 
     def toggle_some(self, *, ids=[], names=[], include_disconnected=False):
-        """alternate name for toggle_speakers"""
+        """
+        Airfoil.toggle_some is an alias for Airfoil.toggle_speakers.
+         See documentation for Airfoil.toggle_speakers.
+        :param ids:     list of speaker ids, not case-sensitive
+        :param names:   list of speaker names, not case-sensitive
+        :param include_disconnected:    boolean, default True, only toggle speakers that are currently connected
+        :return:        list of Airfoil.speaker objects showing their state after your request"""
         return self.toggle_speakers(ids=ids, names=names, include_disconnected=include_disconnected)
 
     def toggle_all(self, include_disconnected=False):
-        """Disconnect and reconnect all currently connected speakers.
-        Solves problems when Airfoil gets in a bad state"""
+        """
+        Airfoil.toggle_all is an alias for Airfoil.toggle_speakers called with no ids or names. This method will toggle
+        all currently connected speakers. See documentation for Airfoil.toggle_speakers.
+        :param include_disconnected:    boolean, default True, only toggle speakers that are currently connected
+        :return:        list of Airfoil.speaker objects showing their state after your request
+        """
         return self.toggle_speakers(include_disconnected=include_disconnected)
 
     def get_sources(self, source_icon=False):
+        """
+        Airfoil.get_sources will return all of the current sources that Airfoil can see as a list of Airfoil.source
+        objects. By default, the source_icon for sources is not returned, but if you set source_icon=True, a base64
+        encoded image will be included in the Airfoil.source objects.
+        :param source_icon:
+        :return: list of Airfoil.source objects representing a
+        """
         base_cmd = {"request": "getSourceList", "requestID": "-1",
                     "data": {"iconSize": 10, "scaleFactor": 1}}
         request_id, cmd = self._create_cmd(base_cmd)
@@ -362,30 +579,15 @@ class Airfoil(object):
                 return sources
 
     def set_source(self, *, name=None, id=None, keywords=[]):
-        '''
-        connect to source
-        if called without params, set source to system audio
-        kind can be any one of [audio_device, running_apps, recent_apps, system_audio]
-        name or id must match format returned by Airfoil.get_sources() if specified
-        keywords is a list of lower-case substrings that appear in the name.
-            You need only specify enough keywords to uniquely identify the source, meaning multiple sources don't
-            share that set of keywords
-            name: 'Microphone (Generic USB Audio Device   )'
-            available keywords for this source:
-                ['microphone', 'generic', 'usb', 'audio', 'device']
-
-        All parameters provided are used to find the right source in the dict of sources returned
-        from Airfoil.get_sources().
-            The call to Airfoil will only use kind and id, so if those are specified,
-            no further information is required.
-            if both name and keywords are specified, an exception will be raised. Pick one.
-
-        :param name:
-        :param id:
-        :param kind:
-        :param keywords
-        :return:
-        '''
+        """
+        Airfoil.set_source with set the current source to the source matching the id, name, or keywords given as a
+        parameter. Only one parameter is required; passing multiple parameters here will raise a ValueError
+        exception. If no match is found for the given parameter, a ValueError exception will be raised.
+        :param name:        source id, string, not case-sensitive
+        :param id:          source name, string, not case-sensitive
+        :param keywords:    source keywords, string, not case-sensitive
+        :return:            Airfoil.current_source object representing current source after sending command to Airfoil.
+        """
         types = {'audio_device': 'audioDevices', 'running_apps': 'runningApplications',
                  'recent_apps': 'recentApplications', 'system_audio': 'systemAudio'}
         base_cmd = {"request": "selectSource",
@@ -438,11 +640,18 @@ class Airfoil(object):
                     # 'Object reference not set to an instance of an object.'}
                     # After getting this response, audio will not work after switching back to spotify
                     # until you disconnect/reconnect speakers. same behavior from airfoil satellite
-                    # creating toggle speakers helper to do this automatically
-                    # print(response)
-                    # return False
 
     def get_current_source(self, machine_icon=False, album_art=False, source_icon=False, track_meta=False):
+        """
+        Airfoil.get_current_source returns the currently selected source in Airfoil as an Airfoil.current_source object.
+        You can also optionally retrieve base64-encoded images for machine_icon, source_icon, and album_art, as well as
+        track metadata if available.
+        :param machine_icon: boolean, default False, include b64-encoded machine icon in current_source object
+        :param source_icon:  boolean, default False, include b64-encoded source icon in current_source object
+        :param album_art:    boolean, default False, include b64-encoded album art in current_source object if available
+        :param track_meta:   boolean, default False, include track metadata in current_source object if available
+        :return:             Airfoil.current_source object
+        """
         base_cmd = {"data": {"scaleFactor": 2, "requestedData":
             {"machineIconAndScreenshot": 300, "albumArt": 300, "icon": 32, "artist": "true", "album": "true",
              "title": "true", "sourceName": "true", "bundleid": "true", "trackMetadataAvailable": "true",
