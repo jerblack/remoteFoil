@@ -1,9 +1,6 @@
 import socket, json, random, sys, time, copy
 from collections import namedtuple
 
-
-
-
 ON = ['full', 'on', 'unmute', 'enable', 'enabled', 'true', 'high', 'hi']
 OFF = ['none', 'off', 'mute', 'disable', 'disabled', 'false', 'low', 'lo']
 MIDDLE = ['half', 'mid', 'middle']
@@ -488,7 +485,7 @@ class Airfoil(object):
 
     def toggle_speakers(self, *, ids=[], names=[], include_disconnected=False):
         """
-            Airfoil.toggle_speakers will tell Airfoil to disconnect and then reconnect multiple speakers based on the
+            Airfoil.toggle_speakers will disconnect and then reconnect multiple speakers based on the
             names or ids that are given as parameters. You can call this method with zero, one, or both ids and names
             parameters.
                 -  passing neither ids nor names toggles all currently connected speakers.
@@ -511,7 +508,7 @@ class Airfoil(object):
                 disconnect, representing a failure to toggle the speakers for some reason.
             :param ids:     list of speaker ids, not case-sensitive
             :param names:   list of speaker names, not case-sensitive
-            :param include_disconnected:    boolean, default True, only toggle speakers that are currently connected
+            :param include_disconnected:    boolean, default False, also toggle speakers that are disconnected
             :return:        list of Airfoil.speaker objects showing their state after your request
             """
         self.get_speakers()
@@ -534,7 +531,7 @@ class Airfoil(object):
          See documentation for Airfoil.toggle_speakers.
         :param ids:     list of speaker ids, not case-sensitive
         :param names:   list of speaker names, not case-sensitive
-        :param include_disconnected:    boolean, default True, only toggle speakers that are currently connected
+        :param include_disconnected:    boolean, default False, also toggle speakers that are disconnected
         :return:        list of Airfoil.speaker objects showing their state after your request"""
         return self.toggle_speakers(ids=ids, names=names, include_disconnected=include_disconnected)
 
@@ -542,7 +539,7 @@ class Airfoil(object):
         """
         Airfoil.toggle_all is an alias for Airfoil.toggle_speakers called with no ids or names. This method will toggle
         all currently connected speakers. See documentation for Airfoil.toggle_speakers.
-        :param include_disconnected:    boolean, default True, only toggle speakers that are currently connected
+        :param include_disconnected:    boolean, default False, also toggle speakers that are disconnected
         :return:        list of Airfoil.speaker objects showing their state after your request
         """
         return self.toggle_speakers(include_disconnected=include_disconnected)
@@ -684,6 +681,16 @@ class Airfoil(object):
                 return result
 
     def set_volume(self, volume, *, id=None, name=None, keywords=[]):
+        """
+        Airfoil.set_volume will set the volume level for one speaker based on the id, name, or
+         keywords given as a parameter. Only one parameter is required; passing multiple parameters will
+         raise a ValueError exception.
+        :param volume:      any valid value for volume is accepted
+        :param id:          speaker id, string, not case-sensitive
+        :param name:        speaker name, string, not case-sensitive
+        :param keywords:    speaker keywords, list of strings, not case-sensitive
+        :return:            list with Airfoil.speaker object showing the speaker state after the command was sent
+        """
         volume = self._parse_volume(volume)
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data":
                     {"longIdentifier": None, "volume": volume}}
@@ -694,6 +701,30 @@ class Airfoil(object):
         return self.get_speakers(ids=[selected_speaker.id])
 
     def set_volumes(self, volume, *, ids=[], names=[], include_disconnected=False):
+        """
+        Airfoil.set_volumes will set the volume on a group of speakers based on the names and ids that are given as
+         parameters, You can call this method with zero, one, or both ids and names parameters.
+         -  passing neither ids nor names sets the volume on all currently connected speakers.
+            - If you want to set the volume on speakers even if they are disconnected, pass include_disconnected=True.
+         -  passing one or both parameters sets the volume all matching speakers.
+         -  no checks are performed to ensure that all ids and names matched, so verify that the number of speakers
+            returned matches what you expected.
+         -  the list of affected speakers is also saved to Airfoil.speakers
+
+        Note on group commands: All commands that work on a collection of speakers like this will parse the given
+        parameters into a list of speakers, and then give Airfoil individual commands for each change to each
+        speaker. Calling this method with 10 speaker ids will result in 10 separate commands sent to Airfoil, with
+        all affected speakers changing volumes sequentially. This may take some time, and the method will not return
+        until all actions have completed. Check the list of speakers that is returned (or Airfoil.speakers) to ensure
+        all properties have the expected values, such as with:
+            # list of tuples with name and volume of all affected speakers.
+            [(speaker.name, speaker.volume) for speaker in Airfoil.speakers]
+        :param volume:  any valid value for volume is accepted
+        :param ids:     list of speaker ids, not case-sensitive
+        :param names:   list of speaker names, not case-sensitive
+        :param include_disconnected:    boolean, default False, also set volume on speakers that are disconnected
+        :return:        list of affected Airfoil.speaker objects showing their state after your request
+        """
         ids = [i.lower() for i in ids]
         names = [n.lower() for n in names]
         volume = self._parse_volume(volume)
@@ -718,28 +749,48 @@ class Airfoil(object):
         return self.get_speakers(ids=to_change)
 
     def set_volume_some(self, volume, *, ids=[], names=[], include_disconnected=False):
+        """
+        Airfoil.set_volume_some is an alias for Airfoil.set_volumes. See documentation for Airfoil.set_volume_some.
+        :param volume:  any valid value for volume is accepted
+        :param ids:     list of speaker ids, not case-sensitive
+        :param names:   list of speaker names, not case-sensitive
+        :param include_disconnected:    boolean, default False, also set volume on speakers that are disconnected
+        :return:        list of affected Airfoil.speaker objects showing their state after your request
+        """
         return self.set_volumes(volume, ids=ids, names=names, include_disconnected=include_disconnected)
 
     def set_volume_all(self, volume, include_disconnected=False):
+        """
+        Airfoil.set_volume_all is an alias for Airfoil.set_volumes called with no names or ids. This method will set the
+        volume on all currently connected speakers See documentation for Airfoil.set_volume_some.
+        :param volume:  any valid value for volume is accepted
+        :param include_disconnected:    boolean, default False, also set volume on speakers that are disconnected
+        :return:        list of affected Airfoil.speaker objects showing their state after your request
+        """
         return self.set_volumes(volume, include_disconnected=include_disconnected)
 
     def fade_volume(self, end_volume, seconds, *, ticks=10, id=None, name=None, keywords=[]):
         """
-        Transition the volume of the specified speaker from it's current volume to the specified end volume over a
-        period of time defined by the seconds parameter. By default, it will use 10 ticks, or 10 total changes to
-        the volume over the specified number of seconds. You can specify a different number of ticks with the
-        ticks parameter. The volume is on a scale from 0.0-1.0 with at least 6 digits of precision. All passed volume
-        values are rounded down to 6 digits of precision before being passed to Airfoil. Specifying 100 ticks over 5
-        seconds means we attempt 100 separate volume changes over that period until the end_volume is reached.
-        Accomplishing tne entire volume change within the specified number of seconds is not guaranteed, and network
-        round trip time and Airfoil response time are not accounted for in this calculation.
-        :param end_volume: float or int
-        :param seconds: float or int
-        :param ticks: int
-        :param id: id of speaker
-        :param name: name of speaker
-        :param keywords: keywords representing speaker
-        :return:
+        Airfoil.fade_volume will transition the volume of the specified speaker from it's current volume to the
+        specified end volume over a period of time defined by the seconds parameter.
+        - By default, it will use 10 ticks, or 10 total changes to the volume over the specified number of seconds.
+          You can specify a different number of ticks with the ticks parameter.
+        - Specifying 100 ticks over 5 seconds means we attempt 100 separate volume changes per speaker over that period
+          until the end_volume is reached.
+        - Accomplishing tne entire volume change within the specified number of seconds is not guaranteed, as network
+          round trip time and Airfoil response time are not accounted for in this calculation. Asking for 1000 ticks to
+          be performed in 1 second will result in a an operation that takes much longer than 1 second to complete, but
+          all requested ticks will be performed. It is possible to overload Airfoil with these requests, with
+          unpredictable results.
+        - The total time of a fade_volume action will be:
+                seconds + (ticks * [number of speakers] * ([network round trip time] + [airfoil response time]))
+        :param end_volume:  any valid value for volume is accepted
+        :param seconds:     float, length of time to change to take to change volume
+        :param ticks:       int, number of increments between current volume and end volume.
+        :param id:          string, speaker id
+        :param name:        string, speaker name
+        :param keywords:    list of strings, sufficient keywords to uniquely identify speaker
+        :return:    list with affected Airfoil.speaker object showing its state after your request
         """
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": None}}
         end_volume = self._parse_volume(end_volume)
@@ -766,14 +817,35 @@ class Airfoil(object):
 
     def fade_volumes(self, end_volume, seconds, *, ticks=10, ids=[], names=[], include_disconnected=False):
         """
-        fade_volumes will change the volume of a collection of speakers simultaneously over a specified period of
-        time
-        :param end_volume
-        :param seconds
-        :param ticks
-        :param ids
-        :param names
+        Airfoil.fade_volumes will transition the volume of a collection of speakers from their current volume to the
+        specified end volume over a period of time defined by the seconds parameter. You can call this method with zero,
+        one, or both ids and names parameters.
+         -  passing neither ids nor names changes the volume on all currently connected speakers.
+            - If you want to change the volume on speakers even if they are disconnected, pass include_disconnected=True.
+         -  passing one or both parameters changes the volume on all matching speakers.
+         -  no checks are performed to ensure that all ids and names matched, so verify that the number of speakers
+            returned matches what you expected.
+         -  the list of affected speakers is also saved to Airfoil.speakers
+        See documentation for Airfoil.fade_volume
+
+        Note on group commands: All commands that work on a collection of speakers like this will parse the given
+        parameters into a list of speakers, and then give Airfoil individual commands for each change to each
+        speaker. Calling this method with 10 speaker ids with the default 10 ticks will result in 100 separate commands
+        sent to Airfoil, with all affected speakers changing volumes sequentially. This may take some time, and the
+        method will not return until all actions have completed. Check the list of speakers that is returned (or
+        Airfoil.speakers) to ensure all properties have the expected values, such as with:
+            # list of tuples with name and volume of all affected speakers.
+            [(speaker.name, speaker.volume) for speaker in Airfoil.speakers]
+
+        :param end_volume:  any valid value for volume is accepted
+        :param seconds:     positive float, length of time to change to take to change volume
+        :param ticks:       int, number of increments between current volume and end volume.
+        :param ids:     list of speaker ids, not case-sensitive
+        :param names:   list of speaker names, not case-sensitive
+        :param include_disconnected:    boolean, default False, also set volume on speakers that are disconnected
+        :return:        list of affected Airfoil.speaker objects showing their state after your request
         """
+
         end_volume = self._parse_volume(end_volume)
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data":
                     {"longIdentifier": None, "volume": end_volume}}
@@ -820,13 +892,45 @@ class Airfoil(object):
         return self.get_speakers(ids=[s['speaker'].id for s in speakers])
 
     def fade_some(self, end_volume, seconds, *, ticks=10, ids=[], names=[], include_disconnected=False):
+        """
+        Airfoil.fade_some is an alias for Airfoil.fade_volumes.
+        See documentation for Airfoil.fade_some
+        :param end_volume:  any valid value for volume is accepted
+        :param seconds:     positive float, length of time to change to take to change volume
+        :param ticks:       int, number of increments between current volume and end volume.
+        :param ids:     list of speaker ids, not case-sensitive
+        :param names:   list of speaker names, not case-sensitive
+        :param include_disconnected:    boolean, default False, also set volume on speakers that are disconnected
+        :return:        list of affected Airfoil.speaker objects showing their state after your request
+        """
         return self.fade_volumes(end_volume, seconds, ticks=ticks, ids=ids, names=names,
                                  include_disconnected=include_disconnected)
 
     def fade_all(self, end_volume, seconds, *, ticks=10, include_disconnected=False):
+        """
+        Airfoil.fade_all is an alias for Airfoil.fade_volumes called with no parameters. This method will change
+        the volume on all currently connected speakers See documentation for Airfoil.fade_volumes.
+        :param end_volume:  any valid value for volume is accepted
+        :param seconds:     positive float, length of time to change to take to change volume
+        :param ticks:       int, number of increments between current volume and end volume.
+        :param include_disconnected:    boolean, default False, also set volume on speakers that are disconnected
+        :return:        list of affected Airfoil.speaker objects showing their state after your request
+         """
         return self.fade_volumes(end_volume, seconds, ticks=ticks, include_disconnected=include_disconnected)
 
     def mute(self, *, id=None, name=None, keywords=[]):
+        """
+        Airfoil.mute will mute one speaker based on the id, name, or keywords given as a parameter. Muting a speaker
+        sets the current volume to 0, but before doing so saves the current Airfoil.speaker object so it can be
+        referenced when unmute is called.
+            Airfoil.muted_speakers[speaker.id] = Airfoil.speaker object before mute; volume property has prior volume
+        Only one parameter is required; passing multiple parameters will raise a ValueError exception.
+
+        :param id:          speaker id, string, not case-sensitive
+        :param name:        speaker name, string, not case-sensitive
+        :param keywords:    speaker keywords, list of strings, not case-sensitive
+        :return:            list with Airfoil.speaker object showing the speaker state after the command was sent
+        """
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": 0}}
         selected_speaker = self.find_speaker(id, name, keywords)
         if selected_speaker.volume:
@@ -836,6 +940,22 @@ class Airfoil(object):
         return self.get_speakers(ids=[selected_speaker.id])
 
     def unmute(self, *, default_volume=1.0, id=None, name=None, keywords=[]):
+        """
+        Airfoil.unmute will unmute one speaker based on the id, name, or keywords given as a parameter.
+        - A request to unmute a speaker that is not muted (volume=0) will be ignored
+        - If a speaker is unmuted, and an Airfoil.speaker object exists in Airfoil.muted_speakers, the volume will be
+          returned to the previous volume for that speaker.
+            Airfoil.muted_speakers[speaker.id] = Airfoil.speaker object before mute; volume property has prior volume
+        - If a speaker is unmuted, and no Airfoil.speaker object exists in Airfoil.muted_speakers for that speaker, the
+          volume will be set to the default_volume parameter, which defaults to 1.0 (full volume)
+
+        Only one parameter is required; passing multiple parameters will raise a ValueError exception.
+
+        :param id:          speaker id, string, not case-sensitive
+        :param name:        speaker name, string, not case-sensitive
+        :param keywords:    speaker keywords, list of strings, not case-sensitive
+        :return:            list with Airfoil.speaker object showing the speaker state after the command was sent
+        """
         base_cmd = {"request": "setSpeakerVolume", "requestID": "-1", "data": {"longIdentifier": None, "volume": None}}
         selected_speaker = self.find_speaker(id, name, keywords)
         base_cmd['data']['longIdentifier'] = selected_speaker.id
@@ -850,6 +970,29 @@ class Airfoil(object):
         return self.get_speakers(ids=[selected_speaker.id])
 
     def mute_some(self, *, ids=[], names=[], include_disconnected=False):
+        """
+        Airfoil.mute_some will tell Airfoil to mute multiple speakers based on the names or ids that are
+        given as parameters. You can call this method with zero, one, or both parameters.
+            -  passing no parameters mutes all currently connected speakers.
+            -  passing one or both parameters mutes all matching speakers.
+            -  no checks are performed to ensure that all ids and names match, so verify that the number of speakers
+               returned matches what you expected.
+            -  the list of affected speakers is also saved to self.speakers
+        Also see documentation for Airfoil.mute
+
+        Note on group commands: All commands that work on a collection of speakers like this will parse the given
+        parameters into a list of speakers, and then give Airfoil individual commands for each change to each
+        speaker. Calling this method with 10 speaker ids will result in 10 separate commands sent to Airfoil, and the
+        speakers will appear to mute sequentially. This may take some time, and the method will not return until
+        all actions have completed. Check the list of speakers that is returned to ensure all its properties have the
+        expected values, such as with:
+            # list of tuples with name and volume of all affected speakers.
+            [(speaker.name, speaker.volume) for speaker in Airfoil.speakers]
+        :param ids:     list of speaker ids, not case-sensitive
+        :param names:   list of speaker names, not case-sensitive
+        :param include_disconnected:
+        :return:        list of Airfoil.speaker objects matching request
+        """
         if type(ids) is not list:
             raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
         if type(names) is not list:
@@ -873,6 +1016,29 @@ class Airfoil(object):
         return self.get_speakers(ids=muted)
 
     def unmute_some(self, *, ids=[], names=[], default_volume=1.0, include_disconnected=False):
+        """
+        Airfoil.unmute_some will tell Airfoil to unmute multiple speakers based on the names or ids that are
+        given as parameters. You can call this method with zero, one, or both parameters.
+            -  passing no parameters mutes all currently connected speakers.
+            -  passing one or both parameters mutes all matching speakers.
+            -  no checks are performed to ensure that all ids and names match, so verify that the number of
+               speakers returned matches what you expected.
+            -  the list of affected speakers is also saved to self.speakers
+        Also see documentation for Airfoil.unmute
+
+        Note on group commands: All commands that work on a collection of speakers like this will parse the given
+        parameters into a list of speakers, and then give Airfoil individual commands for each change to each
+        speaker. Calling this method with 10 speaker ids will result in 10 separate commands sent to Airfoil, and the
+        speakers will appear to mute sequentially. This may take some time, and the method will not return until
+        all actions have completed. Check the list of speakers that is returned to ensure all its properties have the
+        expected values, such as with:
+            # list of tuples with name and volume of all affected speakers.
+            [(speaker.name, speaker.volume) for speaker in Airfoil.speakers]
+        :param ids:     list of speaker ids, not case-sensitive
+        :param names:   list of speaker names, not case-sensitive
+        :param include_disconnected:  boolean, default False, also unmute speakers that are disconnected
+        :return:        list of Airfoil.speaker objects matching request
+        """
         if type(ids) is not list:
             raise ValueError(f'ids must be a list of speaker ids, not \'{type(ids)}\'')
         if type(names) is not list:
@@ -899,16 +1065,44 @@ class Airfoil(object):
         return self.get_speakers(ids=unmuted)
 
     def mutes(self, *, ids=[], names=[], include_disconnected=False):
-        return self.mute_some(ids=ids, names=[], include_disconnected=include_disconnected)
+        """
+        Airfoil.mutes is an alias for Airfoil.mute_some.
+         See documentation for Airfoil.mute_some.
+        :param ids:     list of speaker ids, not case-sensitive
+        :param names:   list of speaker names, not case-sensitive
+        :param include_disconnected:   boolean, default False, also mute speakers that are disconnected
+        :return:        list of Airfoil.speaker objects matching request
+        """
+        return self.mute_some(ids=ids, names=names, include_disconnected=include_disconnected)
 
     def unmutes(self, *, ids=[], names=[], default_volume=1.0, include_disconnected=False):
-        return self.unmute_some(ids=ids, names=[], default_volume=default_volume,
+        """
+        Airfoil.unmutes is an alias for Airfoil.unmute_some.
+         See documentation for Airfoil.unmute_some.
+        :param ids:     list of speaker ids, not case-sensitive
+        :param names:   list of speaker names, not case-sensitive
+        :param include_disconnected:    boolean, default False, also unmute speakers that are disconnected
+        :return:                        list of Airfoil.speaker objects matching request
+        """
+        return self.unmute_some(ids=ids, names=names, default_volume=default_volume,
                                 include_disconnected=include_disconnected)
 
     def mute_all(self, include_disconnected=False):
+        """
+        Airfoil.mute_all is an alias for Airfoil.mute_some called with no parameters
+         See documentation for Airfoil.mute_some
+        :param include_disconnected:    boolean, default False, also mute speakers that are disconnected
+        :return:                        list of Airfoil.speaker objects matching request
+        """
         return self.mute_some(include_disconnected=include_disconnected)
 
     def unmute_all(self, default_volume=1.0, include_disconnected=False):
+        """
+        Airfoil.unmute_all is an alias for Airfoil.unmute_some called with no parameters
+         See documentation for Airfoil.unmute_some
+        :param include_disconnected:    boolean, default False, also unmute speakers that are disconnected
+        :return:                        list of Airfoil.speaker objects matching request
+        """
         return self.unmute_some(default_volume=default_volume, include_disconnected=include_disconnected)
 #
 # from airfoil_finder import AirfoilFinder
