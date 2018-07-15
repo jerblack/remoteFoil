@@ -1,5 +1,5 @@
 import pytest
-from req.utils import nones, bools, print_table
+from remoteFoil.utils import nones, bools, print_table
 
 
 class TestUtils:

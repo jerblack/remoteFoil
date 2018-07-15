@@ -1,16 +1,14 @@
-from airfoil import Airfoil
-import req.zeroconf as zeroconf
+import zeroconf as zeroconf
 import time
 
 
 class AirfoilFinder(object):
     domain = "_slipstreamrem._tcp.local."
     airfoils = {}
+
     def __init__(self, on_add=None, on_remove=None):
         self.zeroconf = zeroconf.Zeroconf()
         self.browser = zeroconf.ServiceBrowser(self.zeroconf, self.domain, self)
-
-
         self.on_add = on_add
         self.on_remove = on_remove
 
@@ -27,7 +25,7 @@ class AirfoilFinder(object):
         ip = '.'.join(str(i) for i in info.address)
         port = info.port
         name = name.split('.')[0].lower()
-        airfoil = Airfoil(ip, port, name)
+        airfoil = (ip, port, name)
         self.airfoils[name] = airfoil
         print(f"\rAirfoil instance '{name}' found at {ip}:{port}.")
         if self.on_add:
@@ -46,8 +44,8 @@ class AirfoilFinder(object):
         :return: instance of Airfoil
         """
         finder = AirfoilFinder()
-        if timeout is not None:
-            while not finder.airfoils:
+        while not finder.airfoils:
+            if timeout is not None:
                 timeout -= 0.25
                 time.sleep(0.25 if timeout >= 0.25 else timeout)
                 if timeout <= 0:
@@ -72,7 +70,7 @@ class AirfoilFinder(object):
         taken = 0
         while True:
             for airfoil in finder.airfoils.values():
-                if airfoil.name == name:
+                if airfoil[2] == name:
                     finder.close()
                     return airfoil
             if timeout:
@@ -96,7 +94,7 @@ class AirfoilFinder(object):
         taken = 0
         while True:
             for airfoil in finder.airfoils.values():
-                if airfoil.ip == ip:
+                if airfoil[0] == ip:
                     finder.close()
                     return airfoil
             if timeout:
@@ -109,9 +107,6 @@ class AirfoilFinder(object):
 
 
 
-if __name__ == '__main__':
-    a = AirfoilFinder.get_airfoil_by_ip('192.168.0.50')
-    print(a.get_speakers())
     #
     # office_speaker = "Chromecast-Audio-20dcfed9e9bd8cf76a1ad34691dc32ad@Office speaker"
     # bedroom_speaker = "Chromecast-Audio-99130c3591fa2bbff26b770eda819eff@Bedroom speaker"

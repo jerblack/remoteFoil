@@ -1,25 +1,125 @@
 import socket, json, random, sys, time, copy
 from collections import namedtuple
+from remoteFoil.airfoil_finder import AirfoilFinder
 
 ON = ['full', 'on', 'unmute', 'enable', 'enabled', 'true', 'high', 'hi']
 OFF = ['none', 'off', 'mute', 'disable', 'disabled', 'false', 'low', 'lo']
 MIDDLE = ['half', 'mid', 'middle']
 
 class Airfoil(object):
+    """
+    The Airfoil class can be used to find and remotely control an instance of the Airfoil application from Rogue Amoeba.
+
+    To instantiate an instance of this class, you do not need to know the name or ip address of the mac or PC running
+    Airfoil, as this can be discovered over mdns. Creating an instance of this class with no parameters will return
+    the first instance of Airfoil that is found on the network. This will be fine for most applications, but if you
+    are running multiple instances of Airfoil on your network, you should specify the name or ip address of the
+    instance you want to control.
+
+    The methods provided in this class mirror and extend the functionality of the Airfoil Satellite application. Each
+    method that controls Airfoil will return an object that shows the current state of the elements that you changed.
+    All returned objects are namedtuples, which means that their properties can be access by dotted notation
+    (``speaker.id``) or by index (``speaker[2]``):
+    - ``Airfoil.connect_speakers`` will return a list of Airfoil.speaker objects (``type(speaker) is Airfoil.speaker``).
+      Each speaker in the list represents the current state of the speakers that were changed by calling this method.
+      Only the speakers that were affected by calling the method will be returned.
+    - ``Airfoil.set_volume`` will return a list with a single Airfoil.speaker object. Anytime Airfoil.speakers are
+        returned, they are returned in a list, even if only one speaker was changed.
+    - ``Airfoil.get_sources`` will return a list of Airfoil.source objects (``type(source) is Airfoil.source``).
+    - ``Airfoil.set_source`` will return an Airfoil.current_source object (not in a list)
+      (``type(source) is Airfoil.current_source``)
+
+    Airfoil.speaker
+        speaker(name='Bedroom speaker', type='chromecast',
+        id='Chromecast-Audio-99130c4733fa2bbff26b770eda819eff@Bedroom speaker', volume=0.81, connected=False,
+        password=False, keywords=['bedroom', 'speaker'])
+
+        This object is a namedtuple with the following properties:
+        - name: speaker name       #
+        - type: speaker type. Observed values for speaker type have been: 'chromecast', 'airplay',
+          'local' (meaning the local PC speakers), 'group' (meaning a group created in Airfoil)
+        - id: speaker id. The format for both Chromecast and Airplay is a {unique string}@{speaker name}
+        - volume: a float from 0.0 to 1.0 showing current volume of speaker
+        - connected: boolean, is Airplay currently connected to the speaker
+        - password: boolean, is speaker password protected
+        - keywords: list of strings that can be used to identify the speaker in method calls
+
+    Airfoil.source
+        source(name='Spotify', id='C:\\Users\\jeremy\\AppData\\Roaming\\Spotify\\spotify.exe',
+        type='running_apps', keywords=['spotify'], icon='')
+
+        This object is a namedtuple with the following properties:
+        - name: source name
+        - id:   source id. For Windows, Airfoil appears to use the path to the executable of the source for
+          external software sources.
+        - type: observed values for this property have been 'audio_device', 'running_apps',
+          'recent_apps', and 'system_audio'
+        - keywords: list of strings that can be used to identify the source in method calls
+        - icon: string, optional, base64 encoded image representing the icon of the source. For performance reasons,
+          icon is only included if Airfoil.get_sources is called with source_icon=True.
+
+    Airfoil.current_source
+        current_source(source_name='Spotify', source_has_track_metadata=True, source_controllable=True,
+        track_album=None, track_artist=None, track_title=None, track_album_art=None, source_icon=None, system_icon=None)
+
+        This object is a namedtuple with the following properties:
+        - source_name: name of source
+        - source_has_track_metadata: boolean, Airfoil thinks that source should have metadata
+        - source_controllable: boolean, Airfoil thinks that source should be controllable
+        - track_album, track_artist, track_title: strings, optional, if Airfoil can see the source metadata it will be
+          provided here, As you see in the example, just because Airfoil says that a source has track metadata available
+          does not mean it will actually be there.
+        - track_album_art: string, optional, base64 encoded image. will only be provided if requested
+        - source_icon: string, optional, base64 encoded image. will only be provided if requested
+        - system_icon: string, optional, base64 encoded image. will only be provided if requested
+    """
     speaker = namedtuple('speaker', ['name', 'type', 'id', 'volume', 'connected', 'password', 'keywords'])
     source = namedtuple('source', ['name', 'id', 'type', 'keywords', 'icon'])
-    current_source = namedtuple('current_source', ['source_name',
-        'source_has_track_metadata', 'source_controllable', 'track_album',
-        'track_artist', 'track_title', 'track_album_art', 'source_icon',
-        'system_icon'])
+    current_source = namedtuple('current_source', ['source_name', 'source_has_track_metadata', 'source_controllable',
+                                                   'track_album', 'track_artist', 'track_title', 'track_album_art',
+                                                   'source_icon', 'system_icon'])
 
-    def __init__(self, ip, port, name):
+    def __init__(self, ip=None, name=None, timeout=10):
+        port = None
+        if name and ip:
+            # print('name', name)
+            # print('ip')
+            raise ValueError('Cannot create remoteFoil instance with both name & ip. Choose one or the other, or neither.')
+        if not name and not ip:
+            ip, port, name = AirfoilFinder.get_first_airfoil(timeout)
+
+        if name:
+            ip, port, name = AirfoilFinder.get_airfoil_by_name(name, timeout)
+        if ip:
+            ip, port, name = AirfoilFinder.get_airfoil_by_ip(ip, timeout)
+
         self.ip = ip
         self.port = port
         self.name = name
         self.sources = []
         self.speakers = []
         self.muted_speakers = {}
+
+    @classmethod
+    def get_first(cls, timeout=10):
+        """
+        Airfoil.get_first is a class method that will return an instance of the remoteFoil.Airfoil class representing
+        the first instance of Airfoil found on the network. If no Airfoil instance is found by the timeout value, a
+        TimeoutError exception will be raised. Set timeout=None to disable the timeout.
+        :param timeout:  int, float, or None, number of seconds to wait until timing out, or None for no timeout.
+        :return:    instance of the remoteFoil.Airfoil class
+        """
+        return AirfoilFinder.get_first_airfoil(timeout)
+
+    @classmethod
+    def get_by_ip(cls, ip, timeout=10):
+        return AirfoilFinder.get_airfoil_by_ip(ip, timeout)
+
+    @classmethod
+    def get_by_name(cls, name, timeout=10):
+        return AirfoilFinder.get_airfoil_by_name(name, timeout)
+
+
 
     def _connect(self, sock):
         hello = b"com.rogueamoeba.protocol.slipstreamremote\nmajorversion=1,minorversion=5\nOK\n"
@@ -621,7 +721,7 @@ class Airfoil(object):
             if not selected_source:
                 raise ValueError(f'no source with specified keywords was found: {keywords}')
 
-        print(f'setting airfoil source to {selected_source.name}')
+        print(f'setting remoteFoil source to {selected_source.name}')
         base_cmd['data']['type'] = types[selected_source.type]
         base_cmd['data']['identifier'] = selected_source.id
         request_id, cmd = self._create_cmd(base_cmd)
@@ -632,11 +732,11 @@ class Airfoil(object):
                 #     return response['data']['success']
                 # except KeyError as e:
                     # switching from playing source (tested system audio and spotify) to microphone always
-                    # generates error 500 from airfoil
+                    # generates error 500 from remoteFoil
                     # {'replyID': '209', 'errorCode': 500, 'errExplanation':
                     # 'Object reference not set to an instance of an object.'}
                     # After getting this response, audio will not work after switching back to spotify
-                    # until you disconnect/reconnect speakers. same behavior from airfoil satellite
+                    # until you disconnect/reconnect speakers. same behavior from remoteFoil satellite
 
     def get_current_source(self, machine_icon=False, album_art=False, source_icon=False, track_meta=False):
         """
@@ -783,7 +883,7 @@ class Airfoil(object):
           all requested ticks will be performed. It is possible to overload Airfoil with these requests, with
           unpredictable results.
         - The total time of a fade_volume action will be:
-                seconds + (ticks * [number of speakers] * ([network round trip time] + [airfoil response time]))
+                seconds + (ticks * [number of speakers] * ([network round trip time] + [remoteFoil response time]))
         :param end_volume:  any valid value for volume is accepted
         :param seconds:     float, length of time to change to take to change volume
         :param ticks:       int, number of increments between current volume and end volume.
@@ -1104,7 +1204,12 @@ class Airfoil(object):
         :return:                        list of Airfoil.speaker objects matching request
         """
         return self.unmute_some(default_volume=default_volume, include_disconnected=include_disconnected)
-#
+
+
+
+if __name__ == '__main__':
+    a = Airfoil()
+    print(a.get_speakers())
 # from airfoil_finder import AirfoilFinder
 # a = AirfoilFinder.get_first_airfoil()
 # a.set_volumes(names=['Bedroom speaker', 'Office speaker'])

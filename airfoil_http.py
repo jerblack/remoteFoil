@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request, g
-from airfoil_finder import AirfoilFinder
+from remoteFoil.airfoil_finder import AirfoilFinder
 import sys
 finder = None
 app = Flask(__name__)
@@ -75,7 +75,7 @@ def _airfoil_cmd(name, cmd, speaker=None):
             else:
                 return _error(name, caller, f'No speaker found with name, id, or keywords: \'{speaker}\'')
     else:
-        return _error(name, caller, f'No airfoil instance found with name \'{name}\'')
+        return _error(name, caller, f'No remoteFoil instance found with name \'{name}\'')
 
 
 def _media_button(name, cmd):
@@ -102,7 +102,7 @@ def _media_button(name, cmd):
 @app.route('/<name>/')
 @app.route('/<name>')
 def get_airfoil(name):
-    return jsonify(_airfoil_cmd(name, lambda airfoil: {'airfoil': {'name': airfoil.name, 'ip': airfoil.ip}}))
+    return jsonify(_airfoil_cmd(name, lambda airfoil: {'remoteFoil': {'name': airfoil.name, 'ip': airfoil.ip}}))
 
 
 @app.route('/<name>/pause/')
@@ -210,7 +210,7 @@ def set_source(name, source='', source_name='', source_id='', keywords=[]):
 
 
     else:
-        return _error(name, f'No airfoil instance found with name \'{name}\'')
+        return _error(name, f'No remoteFoil instance found with name \'{name}\'')
 
 
 @app.route('/<name>/<speaker>/')
@@ -236,10 +236,10 @@ def speaker_uri(name, speaker, action=None, arg1=None, arg2=None, arg3=None):
         return jsonify(_error(name, action, level_error))
 
     if not any([action, arg1, arg2, arg3]):
-        if speaker == 'speakers':               # get list of all speakers /airfoil/speakers
+        if speaker == 'speakers':               # get list of all speakers /remoteFoil/speakers
             return get_speakers(name)
         else:
-            return get_speaker(name, speaker)   # get specific speaker info /airfoil/my_speaker
+            return get_speaker(name, speaker)   # get specific speaker info /remoteFoil/my_speaker
 
     if action in ['on', 'yes', 'true', 'connect', 'enable', 'enabled']:
         return connect(name, speaker)

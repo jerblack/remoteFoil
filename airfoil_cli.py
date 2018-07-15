@@ -32,9 +32,9 @@
     cli sources -> get all sources
     cli source (<source name, id, or keywords)
     -------------------------------------------
-    cli ...cmd... --> act on first airfoil we find
-    cli -n|--name airfoil_name ...cmd... --> act on airfoil by name
-    cli -i|--ip airfoil_ip ...cmd... --> act on airfoil by ip
+    cli ...cmd... --> act on first remoteFoil we find
+    cli -n|--name airfoil_name ...cmd... --> act on remoteFoil by name
+    cli -i|--ip airfoil_ip ...cmd... --> act on remoteFoil by ip
     flag value pair position in cmd does not matter as long as
     value follows flag
 
@@ -57,9 +57,9 @@
     cli source (name, id, or keywords of source)"
 """
 import sys, time, json
-from req.utils import nones, bools, print_table
-from airfoil import OFF, ON, MIDDLE
-from airfoil_finder import AirfoilFinder
+from remoteFoil.utils import nones, bools, print_table
+from remoteFoil.airfoil import OFF, ON, MIDDLE
+from remoteFoil.airfoil_finder import AirfoilFinder
 args = [arg.lstrip('-\/\\').lower() for arg in sys.argv]
 
 DEFAULT_TIMEOUT = 3
@@ -185,7 +185,7 @@ class AirfoilCli:
                 args.pop(name)
                 self.airfoil = AirfoilFinder.get_airfoil_by_name(self.airfoil_name)
             except TimeoutError:
-                print('Timed out waiting for airfoil instance with name "' + self.airfoil_name + '".')
+                print('Timed out waiting for remoteFoil instance with name "' + self.airfoil_name + '".')
                 sys.exit(1)
             except IndexError:
                 print('Please specify a name after -n|--name.')
@@ -197,7 +197,7 @@ class AirfoilCli:
                 args.pop(ip)
                 self.airfoil = AirfoilFinder.get_airfoil_by_ip(self.airfoil_ip)
             except TimeoutError:
-                print('Timed out waiting for airfoil instance with ip "' + self.airfoil_ip + '".')
+                print('Timed out waiting for remoteFoil instance with ip "' + self.airfoil_ip + '".')
                 sys.exit(1)
             except IndexError:
                 print('Please specify an IPv4 address after -i|--ip')
@@ -206,7 +206,7 @@ class AirfoilCli:
             try:
                 self.airfoil = AirfoilFinder.get_first_airfoil()
             except TimeoutError:
-                print('Timed out waiting for an airfoil instance to appear on the network.')
+                print('Timed out waiting for an remoteFoil instance to appear on the network.')
                 sys.exit(1)
 
     def show_airfoils(self):
@@ -512,7 +512,7 @@ class AirfoilCli:
 
         get_timeout()           # parse timeout flag from cmd
         get_disconnected()      # parse include_disconnected flag from cmd
-        get_airfoil()           # parse airfoil name or ip flags from cmd
+        get_airfoil()           # parse remoteFoil name or ip flags from cmd
         get_print_mode()        # parse print mode from cmd
         get_speakers()          # parse target speakers from cmd
         get_actions()           # parse actions in cmd into separate actions

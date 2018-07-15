@@ -1,0 +1,25 @@
+
+airfoil
+    __init__.py
+    airfoil.py
+    airfoil_finder.py
+    utils.py
+    _zeroconf.py
+    requirements.txt
+    setup.py
+airfoil_http
+    __init__.py
+    airfoil_http.py
+    requirements.txt
+    setup.py
+airfoil_cli
+    __init__.py
+    airfoil_cli.py
+    requirements.txt
+    setup.py
+
+docs
+    code.rst
+        auto documentation for airfoil.py
+    cli.rst
+        adapted help documentation from airfoil_cli.py

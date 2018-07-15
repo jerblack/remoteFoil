@@ -1,6 +1,5 @@
-import pytest
-from airfoil import Airfoil, ON, OFF, MIDDLE
-from airfoil_finder import AirfoilFinder
+from remoteFoil.airfoil import Airfoil, ON, OFF, MIDDLE
+from remoteFoil.airfoil_finder import AirfoilFinder
 from tests import *
 
 class TestAirfoil:
